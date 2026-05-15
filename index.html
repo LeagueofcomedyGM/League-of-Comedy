@@ -1,0 +1,405 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>League of Comedy | Book & Manage Live Comedy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0e1a;
+            color: #ffffff;
+        }
+        .bg-brand-gradient {
+            background: linear-gradient(to right, #e53e3e, #f56500);
+        }
+        .text-brand-gradient {
+            background: linear-gradient(to right, #e53e3e, #f56500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .glass-card {
+            background: rgba(15, 22, 40, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        @keyframes scan {
+          0%, 100% { top: 0%; opacity: 0; }
+          50% { top: 100%; opacity: 1; }
+        }
+        .animate-scan {
+          animation: scan 2s ease-in-out infinite;
+        }
+        @keyframes swipeLeft {
+          0% { transform: translateX(100px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .animate-swipe-left {
+          animation: swipeLeft 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0e1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+
+        /* ======================================
+           LEAGUE OF COMEDY - DIRECTORY STYLES
+           ====================================== */
+        :root {
+          --loc-primary: #e53e3e;
+          --loc-primary-orange: #f56500;
+          --loc-gradient: linear-gradient(135deg, #e53e3e 0%, #f56500 100%);
+          --loc-gold: #f6a623;
+          --loc-bg: #0a0e1a;
+          --loc-surface: #0f1628;
+          --loc-surface-light: #131b2e;
+          --loc-border: rgba(255, 255, 255, 0.08);
+          --loc-text: #ffffff;
+          --loc-text-muted: #8892a4;
+          --loc-success: #48bb78;
+        }
+
+        /* SEARCH INPUT SHARED */
+        .roster-search-input {
+          background: #0f1628 !important;
+          border: 1px solid var(--loc-border) !important;
+          color: #ffffff !important;
+          border-radius: 8px !important;
+          padding: 12px 16px !important;
+          width: 100% !important;
+          font-size: 14px !important;
+          font-weight: 600 !important;
+        }
+        .roster-search-input::placeholder {
+          color: var(--loc-text-muted) !important;
+          font-style: italic !important;
+        }
+
+        /* COMEDY SHOWS LAYOUT */
+        .comedy-filter-buttons {
+          display: flex !important;
+          gap: 8px !important;
+          margin-bottom: 32px !important;
+          overflow-x: auto !important;
+          padding-bottom: 8px !important;
+        }
+
+        .comedy-filter-btn {
+          padding: 8px 16px !important;
+          background: #131b2e !important;
+          border: 1px solid var(--loc-border) !important;
+          border-radius: 8px !important;
+          color: var(--loc-text-muted) !important;
+          font-size: 11px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.1em !important;
+          white-space: nowrap !important;
+          transition: all 0.2s ease !important;
+        }
+
+        .comedy-filter-btn.active, .comedy-filter-btn:hover {
+          background: var(--loc-gradient) !important;
+          color: #fff !important;
+          border-color: transparent !important;
+        }
+
+        .comedy-shows-container {
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 16px !important;
+        }
+
+        .comedy-show-card {
+          background: #131b2e !important;
+          border: 1px solid var(--loc-border) !important;
+          border-left: 4px solid var(--loc-primary) !important;
+          border-radius: 12px !important;
+          overflow: hidden !important;
+          display: flex !important;
+          height: 140px !important;
+          transition: transform 0.2s ease !important;
+        }
+
+        .comedy-show-card:hover { transform: translateY(-2px); }
+
+        .comedy-show-image {
+          width: 140px !important;
+          min-width: 140px !important;
+          height: 100% !important;
+          background-size: cover !important;
+          background-position: center !important;
+          position: relative !important;
+        }
+
+        .comedy-price-tag {
+          position: absolute !important;
+          top: 8px !important;
+          left: 8px !important;
+          background: var(--loc-primary) !important;
+          color: #fff !important;
+          font-size: 10px !important;
+          font-weight: 900 !important;
+          padding: 2px 8px !important;
+          border-radius: 4px !important;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+        }
+
+        .comedy-show-content {
+          flex: 1 !important;
+          padding: 16px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          min-width: 0 !important;
+        }
+
+        .comedy-show-title {
+          font-size: 18px !important;
+          font-weight: 800 !important;
+          font-style: italic !important;
+          color: #fff !important;
+          line-height: 1.2 !important;
+          text-transform: uppercase !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .comedy-venue-name {
+          font-size: 12px !important;
+          color: var(--loc-gold) !important;
+          font-weight: 700 !important;
+          text-transform: uppercase !important;
+        }
+
+        .comedy-city-text {
+          font-size: 11px !important;
+          color: var(--loc-text-muted) !important;
+          font-weight: 600 !important;
+          text-transform: uppercase !important;
+        }
+
+        .comedy-datetime {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-end !important;
+          justify-content: center !important;
+          padding: 0 24px !important;
+          border-left: 1px solid var(--loc-border) !important;
+          min-width: 120px !important;
+        }
+
+        .comedy-date {
+          font-size: 13px !important;
+          font-weight: 800 !important;
+          color: #fff !important;
+          text-transform: uppercase !important;
+        }
+
+        .comedy-time {
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          color: var(--loc-text-muted) !important;
+        }
+
+        .comedy-ticket-section {
+          padding: 16px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border-left: 1px solid var(--loc-border) !important;
+        }
+
+        .comedy-ticket-btn {
+          background: var(--loc-gradient) !important;
+          color: #fff !important;
+          font-weight: 900 !important;
+          font-style: italic !important;
+          font-size: 11px !important;
+          padding: 12px 20px !important;
+          border-radius: 8px !important;
+          text-transform: uppercase !important;
+          white-space: nowrap !important;
+        }
+
+        .comedy-utility-buttons {
+          display: flex !important;
+          gap: 6px !important;
+          margin-top: 8px !important;
+        }
+
+        .comedy-utility-btn {
+          font-size: 9px !important;
+          font-weight: 800 !important;
+          color: var(--loc-text-muted) !important;
+          background: #0a0e1a !important;
+          padding: 4px 8px !important;
+          border-radius: 4px !important;
+          border: 1px solid var(--loc-border) !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 4px !important;
+          text-transform: uppercase !important;
+        }
+
+        /* COMEDY ROSTER LAYOUT */
+        .roster-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 16px !important;
+        }
+
+        @media (max-width: 768px) {
+          .roster-grid { grid-template-columns: 1fr !important; }
+          .comedy-show-card { height: auto !important; flex-direction: column !important; }
+          .comedy-show-image { width: 100% !important; height: 160px !important; }
+          .comedy-datetime, .comedy-ticket-section { border-left: none !important; border-top: 1px solid var(--loc-border) !important; padding: 12px !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; }
+        }
+
+        .comedian-card {
+          height: 150px !important;
+          background: #131b2e !important;
+          border: 1px solid var(--loc-border) !important;
+          border-left: 3px solid var(--loc-gold) !important;
+          border-radius: 12px !important;
+          display: flex !important;
+          overflow: hidden !important;
+          transition: all 0.3s ease !important;
+          position: relative !important;
+          cursor: pointer !important;
+        }
+
+        .comedian-card-photo {
+          width: 40% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          object-position: center top !important;
+          background: #0a0e1a !important;
+        }
+
+        .comedian-card-content {
+          width: 60% !important;
+          background: #f6a623 !important;
+          padding: 16px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: flex-start !important;
+        }
+
+        .comedian-card-name {
+          color: #0a0e1a !important;
+          font-weight: 800 !important;
+          font-style: italic !important;
+          text-transform: uppercase !important;
+          font-size: 20px !important;
+          line-height: 1.1 !important;
+          margin-bottom: 4px !important;
+        }
+
+        .comedian-card-content p { color: #0a0e1a !important; opacity: 0.7; }
+
+        .comedian-social-row {
+          margin-top: auto !important;
+          display: flex !important;
+          gap: 8px !important;
+          align-items: center !important;
+        }
+
+        .social-icon-btn {
+          width: 30px !important;
+          height: 30px !important;
+          border-radius: 50% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          transition: transform 0.2s ease !important;
+          color: #ffffff !important;
+          border: 1px solid rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .social-icon-btn svg { width: 14px !important; height: 14px !important; }
+        .social-icon-btn:hover { transform: scale(1.15) !important; }
+
+        .social-icon-btn.ig { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%) !important; }
+        .social-icon-btn.tt { background: #ff0050 !important; }
+        .social-icon-btn.yt { background: #ff0000 !important; }
+        .social-icon-btn.fb { background: #1877f2 !important; }
+        .social-icon-btn.x { background: #000000 !important; }
+        .social-icon-btn.imdb { background: #f5c518 !important; color: #000000 !important; }
+
+        /* ALPHABET FILTER */
+        .alphabet-pill {
+          min-width: 36px !important;
+          height: 36px !important;
+          border-radius: 6px !important;
+          background: #131b2e !important;
+          border: 1px solid var(--loc-border) !important;
+          color: var(--loc-text-muted) !important;
+          font-size: 12px !important;
+          font-weight: 800 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          transition: all 0.2s ease !important;
+        }
+
+        .alphabet-pill:hover, .alphabet-pill.active {
+          background: var(--loc-gradient) !important;
+          color: #ffffff !important;
+        }
+
+        .alphabet-pill-all {
+          padding: 0 16px !important;
+          height: 36px !important;
+          border-radius: 6px !important;
+          background: var(--loc-gradient) !important;
+          color: #ffffff !important;
+          font-size: 12px !important;
+          font-weight: 800 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          text-transform: uppercase !important;
+          font-style: italic !important;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.564.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
