@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth, app } from './firebase';
+import { auth } from './firebase';
+import { handleUserSignup } from './lib/profile';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { Home } from './components/Home';
@@ -22,11 +22,6 @@ import { PostSpotModal } from './components/PostSpotModal';
 import { AuthPage } from './components/AuthPage';
 import { PageType, UserRole } from './types';
 import { Home as HomeIcon, User, Trophy, Briefcase, MapPin, MailCheck, Loader2 } from 'lucide-react';
-
-const fns = getFunctions(app);
-const callHandleUserSignup = httpsCallable<{ userType: string }, { status: string }>(
-  fns, 'handleUserSignup'
-);
 
 const MobileBottomNav: React.FC<{
   currentPage: PageType;
@@ -110,9 +105,9 @@ function App() {
           clearInterval(intervalRef.current!);
           setAuthUser(auth.currentUser);
           try {
-            await callHandleUserSignup({ userType });
+            await handleUserSignup(user.uid, user.email ?? '', userType);
           } catch {
-            // Cloud Function not deployed yet — continue anyway
+            // Firestore unavailable — continue anyway
           }
           sessionStorage.removeItem('loc_pending_user_type');
           setVerificationState(null);

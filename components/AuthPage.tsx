@@ -6,24 +6,12 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth, app } from '../firebase';
+import { auth } from '../firebase';
+import { handleUserSignup, getUserProfile, UserType } from '../lib/profile';
 import { PageType } from '../types';
 import { Mail, Lock, AlertCircle, X, MailCheck, ChevronLeft, Loader2 } from 'lucide-react';
 
 const googleProvider = new GoogleAuthProvider();
-
-const fns = getFunctions(app);
-const callHandleUserSignup = httpsCallable<
-  { userType: string },
-  { status: string; userType: string; docId: string }
->(fns, 'handleUserSignup');
-const callGetUserProfile = httpsCallable<
-  Record<string, never>,
-  { found: boolean; userType?: string }
->(fns, 'getUserProfile');
-
-type UserType = 'fan' | 'comedian' | 'organizer';
 
 const USER_TYPE_OPTIONS: { type: UserType; label: string; sub: string }[] = [
   { type: 'fan',       label: 'FAN',       sub: 'Discover shows and follow comedians' },
@@ -134,7 +122,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           setMode('verify');
           return;
         }
-        try { await callGetUserProfile({}); } catch { /* not deployed yet */ }
+        try { await getUserProfile(user.uid); } catch { /* Firestore unavailable */ }
         navigateTo(PageType.DASHBOARD);
         onClose();
       }
@@ -163,17 +151,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     try {
       await signInWithPopup(auth, googleProvider);
 
+      const user = auth.currentUser!;
       if (mode === 'signup') {
         try {
-          const profileResult = await callGetUserProfile({});
-          if (profileResult.data.found) {
+          const profile = await getUserProfile(user.uid);
+          if (profile.found) {
             navigateTo(PageType.DASHBOARD);
             onClose();
             return;
           }
-          const signupResult = await callHandleUserSignup({ userType: selectedUserType! });
+          const result = await handleUserSignup(user.uid, user.email!, selectedUserType!);
           sessionStorage.removeItem('loc_pending_user_type');
-          if (signupResult.data.status === 'claimed') {
+          if (result.status === 'claimed') {
             setToast('Welcome back! We found your existing profile.');
             setTimeout(() => { navigateTo(PageType.DASHBOARD); onClose(); }, 2500);
           } else {
@@ -185,7 +174,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           onClose();
         }
       } else {
-        try { await callGetUserProfile({}); } catch { /* not deployed yet */ }
+        try { await getUserProfile(user.uid); } catch { /* Firestore unavailable */ }
         navigateTo(PageType.DASHBOARD);
         onClose();
       }
