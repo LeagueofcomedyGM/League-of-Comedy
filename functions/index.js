@@ -24,27 +24,11 @@ function requireVerifiedAuth(context) {
 }
 
 async function findExistingProfile(uid) {
-  const collections = ['users', 'comedians', 'organizers'];
-
-  for (const col of collections) {
-    const byDocId = await db.collection(col).doc(uid).get();
-    if (byDocId.exists) {
-      return { exists: true, userType: byDocId.data().user_type, docId: uid };
-    }
-
-    if (col === 'comedians') {
-      const byUidField = await db.collection(col)
-        .where('uid', '==', uid)
-        .limit(1)
-        .get();
-      if (!byUidField.empty) {
-        return {
-          exists:   true,
-          userType: 'comedian',
-          docId:    byUidField.docs[0].id,
-        };
-      }
-    }
+  // All user types now have a /users doc, so one lookup covers everyone
+  const userDoc = await db.collection('users').doc(uid).get();
+  if (userDoc.exists) {
+    const data = userDoc.data();
+    return { exists: true, userType: data.user_type, docId: uid };
   }
 
   return { exists: false };
@@ -74,12 +58,9 @@ exports.handleUserSignup = functions.https.onCall(async (data, context) => {
   }
 
   switch (userType) {
-    case 'comedian':
-      return createOrClaimComedianProfile(uid, email);
-    case 'fan':
-      return createFanProfile(uid);
-    case 'organizer':
-      return createOrganizerProfile(uid);
+    case 'comedian':  return createOrClaimComedianProfile(uid, email);
+    case 'fan':       return createFanProfile(uid);
+    case 'organizer': return createOrganizerProfile(uid);
   }
 });
 
@@ -90,14 +71,24 @@ async function createOrClaimComedianProfile(uid, email) {
     .limit(1)
     .get();
 
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  // --- Claim existing roster profile ---
   if (!claimQuery.empty) {
     const existingDoc = claimQuery.docs[0];
 
     await existingDoc.ref.update({
       uid:        uid,
       claimed:    true,
-      claimed_at: admin.firestore.FieldValue.serverTimestamp(),
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      claimed_at: now,
+      updated_at: now,
+    });
+
+    await db.collection('users').doc(uid).set({
+      uid:        uid,
+      user_type:  'comedian',
+      created_at: now,
+      updated_at: now,
     });
 
     return {
@@ -108,13 +99,14 @@ async function createOrClaimComedianProfile(uid, email) {
     };
   }
 
+  // --- Create new comedian profile ---
   const newDocRef = db.collection('comedians').doc(uid);
 
   await newDocRef.set({
     uid:                uid,
     user_type:          'comedian',
     claimed:            true,
-    claimed_at:         admin.firestore.FieldValue.serverTimestamp(),
+    claimed_at:         now,
     comedian_name:      '',
     comedian_image:     '',
     comedian_website:   '',
@@ -137,8 +129,15 @@ async function createOrClaimComedianProfile(uid, email) {
     languages_spoken:   [],
     share_demographics: false,
     follower_count:     0,
-    created_at:         admin.firestore.FieldValue.serverTimestamp(),
-    updated_at:         admin.firestore.FieldValue.serverTimestamp(),
+    created_at:         now,
+    updated_at:         now,
+  });
+
+  await db.collection('users').doc(uid).set({
+    uid:        uid,
+    user_type:  'comedian',
+    created_at: now,
+    updated_at: now,
   });
 
   return {
@@ -150,6 +149,8 @@ async function createOrClaimComedianProfile(uid, email) {
 }
 
 async function createFanProfile(uid) {
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
   await db.collection('users').doc(uid).set({
     uid:           uid,
     user_type:     'fan',
@@ -157,23 +158,25 @@ async function createFanProfile(uid) {
     location:      '',
     comedy_styles: [],
     comedy_vibes:  [],
-    created_at:    admin.firestore.FieldValue.serverTimestamp(),
-    updated_at:    admin.firestore.FieldValue.serverTimestamp(),
+    created_at:    now,
+    updated_at:    now,
   });
 
   return { status: 'created', userType: 'fan', docId: uid };
 }
 
 async function createOrganizerProfile(uid) {
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
   await db.collection('users').doc(uid).set({
-    uid:             uid,
-    user_type:       'organizer',
-    display_name:    '',
-    location:        '',
-    comedy_styles:   [],
-    comedy_vibes:    [],
-    created_at:      admin.firestore.FieldValue.serverTimestamp(),
-    updated_at:      admin.firestore.FieldValue.serverTimestamp(),
+    uid:           uid,
+    user_type:     'organizer',
+    display_name:  '',
+    location:      '',
+    comedy_styles: [],
+    comedy_vibes:  [],
+    created_at:    now,
+    updated_at:    now,
   });
 
   await db.collection('organizers').doc(uid).set({
@@ -188,8 +191,8 @@ async function createOrganizerProfile(uid) {
     referral_source: '',
     terms_agreement: false,
     organizer_roles: [],
-    created_at:      admin.firestore.FieldValue.serverTimestamp(),
-    updated_at:      admin.firestore.FieldValue.serverTimestamp(),
+    created_at:      now,
+    updated_at:      now,
   });
 
   return { status: 'created', userType: 'organizer', docId: uid };
