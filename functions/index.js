@@ -123,6 +123,7 @@ async function createOrClaimComedianProfile(uid, email) {
     experience_level:   null,
     comedy_styles:      [],
     comedy_vibes:       [],
+    comedy_themes:      [],
     set_lengths:        [],
     rate_range:         null,
     payment_methods:    [],
@@ -152,14 +153,15 @@ async function createFanProfile(uid) {
   const now = admin.firestore.FieldValue.serverTimestamp();
 
   await db.collection('users').doc(uid).set({
-    uid:           uid,
-    user_type:     'fan',
-    display_name:  '',
-    location:      '',
-    comedy_styles: [],
-    comedy_vibes:  [],
-    created_at:    now,
-    updated_at:    now,
+    uid:            uid,
+    user_type:      'fan',
+    display_name:   '',
+    location:       '',
+    comedy_styles:  [],
+    comedy_vibes:   [],
+    comedy_themes:  [],
+    created_at:     now,
+    updated_at:     now,
   });
 
   return { status: 'created', userType: 'fan', docId: uid };

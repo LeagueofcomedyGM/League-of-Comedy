@@ -116,6 +116,10 @@ const WELCOME_SUBTITLES: Record<string, string> = {
   venue:     'Manage your venue listings and connect with organisers.',
 };
 
+const COMEDY_STYLES  = ['Alt/Surreal', 'Deadpan', 'Impressions', 'Musical/Variety', 'Physical/Slapstick', 'Storytelling'];
+const COMEDY_VIBES   = ['Clean/Family Friendly', 'Mature/Adult', 'Edgy/Explicit'];
+const COMEDY_THEMES  = ['Cultural', 'Dark', 'Topical/Political'];
+
 // ── Shared form field ──────────────────────────────────────────────────────────
 
 const Field: React.FC<{
@@ -150,6 +154,42 @@ const Field: React.FC<{
   </div>
 );
 
+// ── Multi-select pill picker ───────────────────────────────────────────────────
+
+const MultiSelect: React.FC<{
+  label: string;
+  hint?: string;
+  options: string[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}> = ({ label, hint, options, selected, onChange }) => {
+  const toggle = (opt: string) =>
+    onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
+
+  return (
+    <div>
+      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</label>
+      {hint && <p className="text-[10px] text-slate-600 mb-3 font-medium">{hint}</p>}
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggle(opt)}
+            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+              selected.includes(opt)
+                ? 'bg-red-600 text-white'
+                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:border-slate-600 hover:text-white'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ── Edit Profile panel ─────────────────────────────────────────────────────────
 
 const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
@@ -158,6 +198,9 @@ const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) =
   const [saved, setSaved]       = useState(false);
   const [comedianDocId, setComedianDocId] = useState(uid);
   const [fields, setFields]     = useState<Record<string, string>>({});
+  const [styles, setStyles]     = useState<string[]>([]);
+  const [vibes, setVibes]       = useState<string[]>([]);
+  const [themes, setThemes]     = useState<string[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -184,6 +227,9 @@ const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) =
               youtube_link:     data.youtube_link     ?? '',
               imdb_link:        data.imdb_link        ?? '',
             });
+            setStyles(data.comedy_styles ?? []);
+            setVibes(data.comedy_vibes   ?? []);
+            setThemes(data.comedy_themes ?? []);
           }
         } else if (role === 'organizer') {
           const [uSnap, oSnap] = await Promise.all([
@@ -219,7 +265,12 @@ const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) =
     setSaving(true);
     try {
       if (role === 'comedian') {
-        await updateDoc(doc(db, 'comedians', comedianDocId), fields);
+        await updateDoc(doc(db, 'comedians', comedianDocId), {
+          ...fields,
+          comedy_styles: styles,
+          comedy_vibes:  vibes,
+          comedy_themes: themes,
+        });
       } else if (role === 'organizer') {
         const { display_name, phone, city, state, bio } = fields;
         await Promise.all([
@@ -266,6 +317,13 @@ const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) =
               <Field label="Facebook" value={fields.facebook_link ?? ''} onChange={v => set('facebook_link', v)} placeholder="https://facebook.com/yourpage" type="url" />
               <Field label="YouTube" value={fields.youtube_link ?? ''} onChange={v => set('youtube_link', v)} placeholder="https://youtube.com/@yourchannel" type="url" />
               <Field label="IMDb" value={fields.imdb_link ?? ''} onChange={v => set('imdb_link', v)} placeholder="https://imdb.com/name/..." type="url" />
+
+              <hr className="border-slate-800" />
+              <h3 className="text-xs font-black italic uppercase tracking-widest text-slate-400">How Bookers & Fans Find You</h3>
+
+              <MultiSelect label="Comedy Style" options={COMEDY_STYLES} selected={styles} onChange={setStyles} />
+              <MultiSelect label="Comedy Vibe" options={COMEDY_VIBES} selected={vibes} onChange={setVibes} />
+              <MultiSelect label="Comedy Themes" hint="Optional" options={COMEDY_THEMES} selected={themes} onChange={setThemes} />
             </>
           )}
 
@@ -303,6 +361,80 @@ const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) =
           {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
+    </div>
+  );
+};
+
+// ── Fan discovery preferences (Settings tab) ──────────────────────────────────
+
+const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [styles, setStyles]   = useState<string[]>([]);
+  const [vibes, setVibes]     = useState<string[]>([]);
+  const [themes, setThemes]   = useState<string[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        const data = snap.data() ?? {};
+        setStyles(data.comedy_styles ?? []);
+        setVibes(data.comedy_vibes   ?? []);
+        setThemes(data.comedy_themes ?? []);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        comedy_styles: styles,
+        comedy_vibes:  vibes,
+        comedy_themes: themes,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+      <h3 className="text-2xl font-black italic uppercase mb-1">Discovery Preferences</h3>
+      <p className="text-xs text-slate-500 font-medium mb-8">
+        Private — used to surface shows, comedians, and clips that match your taste.
+      </p>
+      <div className="space-y-6">
+        <MultiSelect label="Comedy Style" options={COMEDY_STYLES} selected={styles} onChange={setStyles} />
+        <MultiSelect label="Comedy Vibe" options={COMEDY_VIBES} selected={vibes} onChange={setVibes} />
+        <MultiSelect label="Comedy Themes" hint="Optional" options={COMEDY_THEMES} selected={themes} onChange={setThemes} />
+      </div>
+      <button
+        onClick={handleSave}
+        disabled={saving || saved}
+        className={`mt-8 flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase italic tracking-widest transition-all ${
+          saved
+            ? 'bg-emerald-600 text-white cursor-default'
+            : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed'
+        }`}
+      >
+        {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        {saved   && <Check className="w-3.5 h-3.5" />}
+        {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Preferences'}
+      </button>
     </div>
   );
 };
@@ -488,37 +620,41 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
 
   const renderSettings = () => (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
-        <h3 className="text-2xl font-black italic uppercase mb-8">Newsletter Preferences</h3>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
-            <div>
-              <h4 className="font-bold uppercase text-sm mb-1">City-Specific Editions</h4>
-              <p className="text-xs text-slate-500">Get local gigs and trending shows in your city.</p>
+      {role === 'fan' && authUser ? (
+        <FanPreferencesSettings uid={authUser.uid} />
+      ) : (
+        <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+          <h3 className="text-2xl font-black italic uppercase mb-8">Newsletter Preferences</h3>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
+              <div>
+                <h4 className="font-bold uppercase text-sm mb-1">City-Specific Editions</h4>
+                <p className="text-xs text-slate-500">Get local gigs and trending shows in your city.</p>
+              </div>
+              <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
+                <option>London</option>
+                <option>New York</option>
+                <option>Austin</option>
+              </select>
             </div>
-            <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
-              <option>London</option>
-              <option>New York</option>
-              <option>Austin</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
-            <div>
-              <h4 className="font-bold uppercase text-sm mb-1">Frequency</h4>
-              <p className="text-xs text-slate-500">Choose how often you want to hear from us.</p>
+            <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
+              <div>
+                <h4 className="font-bold uppercase text-sm mb-1">Frequency</h4>
+                <p className="text-xs text-slate-500">Choose how often you want to hear from us.</p>
+              </div>
+              <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
+                <option>Weekly (Enthusiast)</option>
+                <option>Bi-Weekly (Regular)</option>
+                <option>Monthly (Occasional)</option>
+                <option>Event-Based Only</option>
+              </select>
             </div>
-            <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
-              <option>Weekly (Enthusiast)</option>
-              <option>Bi-Weekly (Regular)</option>
-              <option>Monthly (Occasional)</option>
-              <option>Event-Based Only</option>
-            </select>
           </div>
+          <button className="mt-8 bg-red-600 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest italic hover:bg-red-700 transition-all">
+            Save Preferences
+          </button>
         </div>
-        <button className="mt-8 bg-red-600 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest italic hover:bg-red-700 transition-all">
-          Save Preferences
-        </button>
-      </div>
+      )}
 
       <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
         <h3 className="text-2xl font-black italic uppercase mb-8">LAF Points & Rewards</h3>

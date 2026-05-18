@@ -100,6 +100,7 @@ async function createOrClaimComedianProfile(uid: string, email: string): Promise
     experience_level:   null,
     comedy_styles:      [],
     comedy_vibes:       [],
+    comedy_themes:      [],
     set_lengths:        [],
     rate_range:         null,
     payment_methods:    [],
@@ -123,13 +124,14 @@ async function createOrClaimComedianProfile(uid: string, email: string): Promise
 async function createFanProfile(uid: string): Promise<SignupResult> {
   await setDoc(doc(db, 'users', uid), {
     uid,
-    user_type:     'fan',
-    display_name:  '',
-    location:      '',
-    comedy_styles: [],
-    comedy_vibes:  [],
-    created_at:    serverTimestamp(),
-    updated_at:    serverTimestamp(),
+    user_type:      'fan',
+    display_name:   '',
+    location:       '',
+    comedy_styles:  [],
+    comedy_vibes:   [],
+    comedy_themes:  [],
+    created_at:     serverTimestamp(),
+    updated_at:     serverTimestamp(),
   });
   return { status: 'created', userType: 'fan', docId: uid };
 }
