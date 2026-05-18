@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { auth } from './firebase';
-import { handleUserSignup } from './lib/profile';
+import { handleUserSignup, getUserProfile } from './lib/profile';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { Home } from './components/Home';
@@ -69,12 +69,22 @@ function App() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !user.emailVerified) {
         setAuthUser(null);
       } else {
         setAuthUser(user);
-        if (user) setIsAuthModalOpen(false);
+        if (user) {
+          setIsAuthModalOpen(false);
+          try {
+            const profile = await getUserProfile(user.uid);
+            if (profile.found && profile.userType) {
+              setUserRole(profile.userType as UserRole);
+            }
+          } catch { /* Firestore unavailable */ }
+        } else {
+          setUserRole('fan');
+        }
       }
     });
     return unsubscribe;
@@ -194,7 +204,7 @@ function App() {
       case PageType.ORGANIZER_MANAGEMENT_CENTER:
         return <OrganizerManagementCenter />;
       case PageType.DASHBOARD:
-        return <UserDashboard role={userRole} setRole={setUserRole} />;
+        return <UserDashboard role={userRole} />;
       default:
         return <Home navigateTo={navigateTo} onPostSpot={() => setIsPostModalOpen(true)} />;
     }

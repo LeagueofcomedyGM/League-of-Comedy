@@ -23,10 +23,9 @@ import {
 
 interface UserDashboardProps {
   role: UserRole;
-  setRole: (role: UserRole) => void;
 }
 
-export const UserDashboard: React.FC<UserDashboardProps> = ({ role, setRole }) => {
+export const UserDashboard: React.FC<UserDashboardProps> = ({ role }) => {
   const [activeTab, setActiveTab] = useState('home');
 
   const stats = {
@@ -246,12 +245,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, setRole }) =
              </nav>
            </div>
 
-           <div className="glass-card p-6 rounded-[2rem] border-slate-800 text-center">
-             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 italic">Switch Role View</p>
-             <div className="grid grid-cols-1 gap-2">
-               <button onClick={() => setRole('fan')} className={`py-2 rounded-lg text-[8px] font-black uppercase transition-all ${role === 'fan' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-600 border border-transparent hover:text-slate-400'}`}>Fan View</button>
-               <button onClick={() => setRole('comedian')} className={`py-2 rounded-lg text-[8px] font-black uppercase transition-all ${role === 'comedian' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-600 border border-transparent hover:text-slate-400'}`}>Talent View</button>
-               <button onClick={() => setRole('organizer')} className={`py-2 rounded-lg text-[8px] font-black uppercase transition-all ${role === 'organizer' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-600 border border-transparent hover:text-slate-400'}`}>Organizer View</button>
+           <div className="glass-card p-4 rounded-[2rem] border-slate-800 text-center">
+             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 italic">Account Type</p>
+             <div className="inline-block px-4 py-1.5 bg-brand-gradient rounded-full text-white text-[10px] font-black uppercase italic tracking-widest">
+               {role === 'comedian' ? 'Comedian' : role === 'organizer' ? 'Organizer' : 'Fan'}
              </div>
            </div>
         </aside>
