@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { User as FirebaseUser } from 'firebase/auth';
 import { UserRole } from '../types';
 import { 
   Trophy, 
@@ -23,10 +24,15 @@ import {
 
 interface UserDashboardProps {
   role: UserRole;
+  authUser: FirebaseUser | null;
 }
 
-export const UserDashboard: React.FC<UserDashboardProps> = ({ role }) => {
+export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser }) => {
   const [activeTab, setActiveTab] = useState('home');
+
+  const displayName = authUser?.displayName ?? authUser?.email?.split('@')[0] ?? 'Member';
+  const firstName = displayName.split(' ')[0];
+  const initial = displayName[0]?.toUpperCase() ?? '?';
 
   const stats = {
     fan: [
@@ -55,7 +61,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role }) => {
       <div className="glass-card p-8 rounded-[2.5rem] border-slate-800 bg-gradient-to-br from-red-600/10 to-transparent relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-600/10 blur-[100px] rounded-full"></div>
         <div className="relative z-10">
-          <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-2">Welcome Back, <span className="text-amber-500">Julius</span></h2>
+          <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-2">Welcome Back, <span className="text-amber-500">{firstName}</span></h2>
           <p className="text-slate-400 font-medium max-w-lg">You have 2 upcoming shows this week. Your performance at "The Store" earned you 50 bonus LAF points!</p>
         </div>
       </div>
@@ -177,10 +183,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role }) => {
         {/* Mobile Profile Header */}
         <div className="lg:hidden">
           <div className="flex flex-col items-center text-center mb-8">
-            <div className="w-24 h-24 rounded-full border-4 border-amber-500/20 overflow-hidden mb-4 shadow-2xl">
-              <img src="https://i.pravatar.cc/300?u=julius" className="w-full h-full object-cover" />
+            <div className="w-24 h-24 rounded-full border-4 border-amber-500/20 overflow-hidden mb-4 shadow-2xl flex items-center justify-center bg-[#131b2e]">
+              {authUser?.photoURL
+                ? <img src={authUser.photoURL} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                : <span className="text-3xl font-black text-white">{initial}</span>}
             </div>
-            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">Julius Carr</h2>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter text-white">{displayName}</h2>
             <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mb-4">Professional Headliner</p>
             
             <div className="flex gap-8 mb-6">
@@ -218,9 +226,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role }) => {
         <aside className="hidden lg:block space-y-4">
            <div className="glass-card p-4 sm:p-6 rounded-[2rem] border-slate-800">
              <div className="flex items-center gap-4 mb-6 sm:mb-8 p-2">
-               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800 border-2 border-red-600 flex items-center justify-center font-black text-lg sm:text-xl">J</div>
+               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800 border-2 border-red-600 overflow-hidden flex items-center justify-center font-black text-lg sm:text-xl">
+                 {authUser?.photoURL
+                   ? <img src={authUser.photoURL} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                   : initial}
+               </div>
                <div>
-                 <h4 className="font-bold uppercase italic text-xs sm:text-sm">Julius Carr</h4>
+                 <h4 className="font-bold uppercase italic text-xs sm:text-sm">{displayName}</h4>
                  <p className="text-[9px] sm:text-[10px] font-black text-amber-500 uppercase tracking-widest">PRO MEMBER</p>
                </div>
              </div>
