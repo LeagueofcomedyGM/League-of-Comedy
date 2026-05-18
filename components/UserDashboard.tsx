@@ -28,6 +28,7 @@ import {
   PencilLine,
   Loader2,
   Check,
+  Lock,
 } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -40,36 +41,36 @@ interface UserDashboardProps {
 
 const NAV_ITEMS: Record<string, { id: string; label: string; icon: React.ReactNode }[]> = {
   fan: [
-    { id: 'home',         label: 'Overview',     icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'edit-profile', label: 'Edit Profile',  icon: <PencilLine className="w-4 h-4" /> },
-    { id: 'tickets',      label: 'My Tickets',    icon: <Ticket className="w-4 h-4" /> },
-    { id: 'following',    label: 'Following',     icon: <Heart className="w-4 h-4" /> },
-    { id: 'settings',     label: 'Settings',      icon: <Settings className="w-4 h-4" /> },
+    { id: 'home',         label: 'Overview',    icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'edit-profile', label: 'Edit Profile', icon: <PencilLine className="w-4 h-4" /> },
+    { id: 'tickets',      label: 'My Tickets',   icon: <Ticket className="w-4 h-4" /> },
+    { id: 'following',    label: 'Following',    icon: <Heart className="w-4 h-4" /> },
+    { id: 'settings',     label: 'Settings',     icon: <Settings className="w-4 h-4" /> },
   ],
   comedian: [
-    { id: 'home',         label: 'Overview',     icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'edit-profile', label: 'Edit Profile',  icon: <PencilLine className="w-4 h-4" /> },
-    { id: 'events',       label: 'My Events',    icon: <Calendar className="w-4 h-4" /> },
-    { id: 'gigs',         label: 'Gig Board',    icon: <Briefcase className="w-4 h-4" /> },
-    { id: 'tickets',      label: 'My Tickets',   icon: <Ticket className="w-4 h-4" /> },
-    { id: 'following',    label: 'Following',    icon: <Heart className="w-4 h-4" /> },
-    { id: 'messages',     label: 'Messages',     icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'settings',     label: 'Settings',     icon: <Settings className="w-4 h-4" /> },
+    { id: 'home',         label: 'Overview',    icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'edit-profile', label: 'Edit Profile', icon: <PencilLine className="w-4 h-4" /> },
+    { id: 'events',       label: 'My Events',   icon: <Calendar className="w-4 h-4" /> },
+    { id: 'gigs',         label: 'Gig Board',   icon: <Briefcase className="w-4 h-4" /> },
+    { id: 'tickets',      label: 'My Tickets',  icon: <Ticket className="w-4 h-4" /> },
+    { id: 'following',    label: 'Following',   icon: <Heart className="w-4 h-4" /> },
+    { id: 'messages',     label: 'Messages',    icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'settings',     label: 'Settings',    icon: <Settings className="w-4 h-4" /> },
   ],
   organizer: [
-    { id: 'home',         label: 'Overview',     icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'edit-profile', label: 'Edit Profile',  icon: <PencilLine className="w-4 h-4" /> },
-    { id: 'events',       label: 'My Events',    icon: <Calendar className="w-4 h-4" /> },
-    { id: 'gigs',         label: 'Gig Board',    icon: <Briefcase className="w-4 h-4" /> },
-    { id: 'tickets',      label: 'My Tickets',   icon: <Ticket className="w-4 h-4" /> },
-    { id: 'following',    label: 'Following',    icon: <Heart className="w-4 h-4" /> },
-    { id: 'messages',     label: 'Messages',     icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'settings',     label: 'Settings',     icon: <Settings className="w-4 h-4" /> },
+    { id: 'home',         label: 'Overview',    icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'edit-profile', label: 'Edit Profile', icon: <PencilLine className="w-4 h-4" /> },
+    { id: 'events',       label: 'My Events',   icon: <Calendar className="w-4 h-4" /> },
+    { id: 'gigs',         label: 'Gig Board',   icon: <Briefcase className="w-4 h-4" /> },
+    { id: 'tickets',      label: 'My Tickets',  icon: <Ticket className="w-4 h-4" /> },
+    { id: 'following',    label: 'Following',   icon: <Heart className="w-4 h-4" /> },
+    { id: 'messages',     label: 'Messages',    icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'settings',     label: 'Settings',    icon: <Settings className="w-4 h-4" /> },
   ],
   venue: [
-    { id: 'home',         label: 'Overview',     icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'edit-profile', label: 'Edit Profile',  icon: <PencilLine className="w-4 h-4" /> },
-    { id: 'settings',     label: 'Settings',     icon: <Settings className="w-4 h-4" /> },
+    { id: 'home',         label: 'Overview',    icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'edit-profile', label: 'Edit Profile', icon: <PencilLine className="w-4 h-4" /> },
+    { id: 'settings',     label: 'Settings',    icon: <Settings className="w-4 h-4" /> },
   ],
 };
 
@@ -116,11 +117,29 @@ const WELCOME_SUBTITLES: Record<string, string> = {
   venue:     'Manage your venue listings and connect with organisers.',
 };
 
-const COMEDY_STYLES  = ['Alt/Surreal', 'Deadpan', 'Impressions', 'Musical/Variety', 'Physical/Slapstick', 'Storytelling'];
-const COMEDY_VIBES   = ['Clean/Family Friendly', 'Mature/Adult', 'Edgy/Explicit'];
-const COMEDY_THEMES  = ['Cultural', 'Dark', 'Topical/Political'];
+// ── Profile field option lists ─────────────────────────────────────────────────
 
-// ── Shared form field ──────────────────────────────────────────────────────────
+const COMEDY_STYLES     = ['Alt/Surreal', 'Deadpan', 'Impressions', 'Musical/Variety', 'Physical/Slapstick', 'Storytelling'];
+const COMEDY_VIBES      = ['Clean/Family Friendly', 'Mature/Adult', 'Edgy/Explicit'];
+const COMEDY_THEMES     = ['Cultural', 'Dark', 'Topical/Political'];
+const EXPERIENCE_LEVELS = ['Rookie', 'Open-Micer', 'Feature Act', 'Headliner', 'All-Star / Headliner'];
+const SET_LENGTHS       = ['5 min', '10 min', '15 min', '20 min', '30 min', '45 min', '60+ min'];
+const RATE_RANGES       = ['Free / Unpaid', '$1–$100', '$100–$250', '$250–$500', '$500–$1,000', '$1,000+', 'Negotiable'];
+const PAYMENT_METHODS   = ['Cash', 'Venmo', 'PayPal', 'Zelle', 'CashApp', 'Check', 'Wire Transfer', 'Invoice'];
+const LANGUAGES         = ['English', 'Spanish', 'French', 'Portuguese', 'German', 'Mandarin', 'Cantonese', 'Japanese', 'Korean', 'Arabic', 'Hindi', 'Other'];
+const ORGANIZER_ROLES   = ['Producer', 'Booker', 'Promoter', 'Venue Owner', 'Club Manager', 'Festival Organizer', 'Corporate Event Planner', 'Bar / Restaurant Booker'];
+const GENDER_OPTIONS    = ['Man', 'Woman', 'Non-Binary', 'Transgender', 'Genderqueer', 'Prefer not to say'];
+const ETHNICITY_OPTIONS = ['Black / African American', 'White / European', 'Hispanic / Latino', 'Asian', 'Middle Eastern', 'Pacific Islander', 'Native American', 'Mixed / Multiracial', 'Other', 'Prefer not to say'];
+
+// ── Shared form components ─────────────────────────────────────────────────────
+
+const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, subtitle }) => (
+  <div className="pt-2">
+    <h3 className="text-xs font-black italic uppercase tracking-widest text-slate-400">{title}</h3>
+    {subtitle && <p className="text-[10px] text-slate-600 mt-0.5 font-medium">{subtitle}</p>}
+    <hr className="border-slate-800 mt-3" />
+  </div>
+);
 
 const Field: React.FC<{
   label: string;
@@ -129,11 +148,11 @@ const Field: React.FC<{
   placeholder?: string;
   type?: string;
   textarea?: boolean;
-}> = ({ label, value, onChange, placeholder, type = 'text', textarea }) => (
+  hint?: string;
+}> = ({ label, value, onChange, placeholder, type = 'text', textarea, hint }) => (
   <div>
-    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
-      {label}
-    </label>
+    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{label}</label>
+    {hint && <p className="text-[10px] text-slate-600 mb-2 font-medium">{hint}</p>}
     {textarea ? (
       <textarea
         value={value}
@@ -154,7 +173,25 @@ const Field: React.FC<{
   </div>
 );
 
-// ── Multi-select pill picker ───────────────────────────────────────────────────
+const SelectField: React.FC<{
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}> = ({ label, value, onChange, options, placeholder }) => (
+  <div>
+    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">{label}</label>
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="w-full bg-[#131b2e] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-red-500 transition-colors appearance-none"
+    >
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  </div>
+);
 
 const MultiSelect: React.FC<{
   label: string;
@@ -170,7 +207,7 @@ const MultiSelect: React.FC<{
     <div>
       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</label>
       {hint && <p className="text-[10px] text-slate-600 mb-3 font-medium">{hint}</p>}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mt-2">
         {options.map(opt => (
           <button
             key={opt}
@@ -190,109 +227,114 @@ const MultiSelect: React.FC<{
   );
 };
 
-// ── Edit Profile panel ─────────────────────────────────────────────────────────
+const SaveButton: React.FC<{ saving: boolean; saved: boolean; onClick: () => void }> = ({ saving, saved, onClick }) => (
+  <button
+    onClick={onClick}
+    disabled={saving || saved}
+    className={`mt-8 flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase italic tracking-widest transition-all ${
+      saved
+        ? 'bg-emerald-600 text-white cursor-default'
+        : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed'
+    }`}
+  >
+    {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+    {saved   && <Check   className="w-3.5 h-3.5" />}
+    {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Changes'}
+  </button>
+);
 
-const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [comedianDocId, setComedianDocId] = useState(uid);
-  const [fields, setFields]     = useState<Record<string, string>>({});
-  const [styles, setStyles]     = useState<string[]>([]);
-  const [vibes, setVibes]       = useState<string[]>([]);
-  const [themes, setThemes]     = useState<string[]>([]);
+// ── Comedian Edit Profile ──────────────────────────────────────────────────────
+
+const ComedianEditProfile: React.FC<{ uid: string }> = ({ uid }) => {
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [saved, setSaved]             = useState(false);
+  const [docId, setDocId]             = useState(uid);
+
+  // String fields
+  const [fields, setFields]           = useState<Record<string, string>>({});
+  // Array fields
+  const [styles, setStyles]           = useState<string[]>([]);
+  const [vibes, setVibes]             = useState<string[]>([]);
+  const [themes, setThemes]           = useState<string[]>([]);
+  const [setLengths, setSetLengths]   = useState<string[]>([]);
+  const [payments, setPayments]       = useState<string[]>([]);
+  const [languages, setLanguages]     = useState<string[]>([]);
+  // Private demographics
+  const [shareDemo, setShareDemo]     = useState(false);
+  const [genderIds, setGenderIds]     = useState<string[]>([]);
+  const [ethnicities, setEthnicities] = useState<string[]>([]);
 
   useEffect(() => {
     async function load() {
-      setLoading(true);
       try {
-        if (role === 'comedian') {
-          const snap = await getDocs(
-            query(collection(db, 'comedians'), where('uid', '==', uid), limit(1))
-          );
-          if (!snap.empty) {
-            const d = snap.docs[0];
-            setComedianDocId(d.id);
-            const data = d.data();
-            setFields({
-              comedian_name:    data.comedian_name    ?? '',
-              bio:              data.bio              ?? '',
-              current_city:     data.current_city     ?? '',
-              comedian_website: data.comedian_website ?? '',
-              comedy_clip_link: data.comedy_clip_link ?? '',
-              instagram_link:   data.instagram_link   ?? '',
-              facebook_link:    data.facebook_link    ?? '',
-              x_link:           data.x_link           ?? '',
-              tiktok_link:      data.tiktok_link      ?? '',
-              youtube_link:     data.youtube_link     ?? '',
-              imdb_link:        data.imdb_link        ?? '',
-            });
-            setStyles(data.comedy_styles ?? []);
-            setVibes(data.comedy_vibes   ?? []);
-            setThemes(data.comedy_themes ?? []);
-          }
-        } else if (role === 'organizer') {
-          const [uSnap, oSnap] = await Promise.all([
-            getDoc(doc(db, 'users', uid)),
-            getDoc(doc(db, 'organizers', uid)),
-          ]);
-          const u = uSnap.data() ?? {};
-          const o = oSnap.data() ?? {};
+        const snap = await getDocs(
+          query(collection(db, 'comedians'), where('uid', '==', uid), limit(1))
+        );
+        if (!snap.empty) {
+          const d    = snap.docs[0];
+          const data = d.data();
+          setDocId(d.id);
           setFields({
-            display_name: u.display_name ?? '',
-            phone:        o.phone        ?? '',
-            city:         o.city         ?? '',
-            state:        o.state        ?? '',
-            bio:          o.bio          ?? '',
+            comedian_name:    data.comedian_name    ?? '',
+            comedian_image:   data.comedian_image   ?? '',
+            bio:              data.bio              ?? '',
+            location:         data.location ?? data.current_city ?? '',
+            comedian_website: data.comedian_website ?? '',
+            comedy_clip_link: data.comedy_clip_link ?? '',
+            experience_level: data.experience_level ?? '',
+            rate_range:       data.rate_range       ?? '',
+            instagram_link:   data.instagram_link   ?? '',
+            facebook_link:    data.facebook_link    ?? '',
+            x_link:           data.x_link           ?? '',
+            tiktok_link:      data.tiktok_link      ?? '',
+            youtube_link:     data.youtube_link     ?? '',
+            imdb_link:        data.imdb_link        ?? '',
           });
-        } else {
-          const snap = await getDoc(doc(db, 'users', uid));
-          const data = snap.data() ?? {};
-          setFields({
-            display_name: data.display_name ?? '',
-            location:     data.location     ?? '',
-          });
+          setStyles(data.comedy_styles    ?? []);
+          setVibes(data.comedy_vibes      ?? []);
+          setThemes(data.comedy_themes    ?? []);
+          setSetLengths(data.set_lengths  ?? []);
+          setPayments(data.payment_methods ?? []);
+          setLanguages(data.languages_spoken ?? []);
+          setShareDemo(data.share_demographics ?? false);
+          setGenderIds(data.gender_identity ?? []);
+          setEthnicities(data.race_ethnicity ?? []);
         }
       } catch { /* ignore */ }
       setLoading(false);
     }
     load();
-  }, [uid, role]);
+  }, [uid]);
 
   const set = (k: string, v: string) => setFields(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (role === 'comedian') {
-        await updateDoc(doc(db, 'comedians', comedianDocId), {
-          ...fields,
-          comedy_styles: styles,
-          comedy_vibes:  vibes,
-          comedy_themes: themes,
-        });
-      } else if (role === 'organizer') {
-        const { display_name, phone, city, state, bio } = fields;
-        await Promise.all([
-          updateDoc(doc(db, 'users', uid),      { display_name }),
-          updateDoc(doc(db, 'organizers', uid), { phone, city, state, bio }),
-        ]);
-      } else {
-        await updateDoc(doc(db, 'users', uid), fields);
-      }
+      await updateDoc(doc(db, 'comedians', docId), {
+        ...fields,
+        comedy_styles:      styles,
+        comedy_vibes:       vibes,
+        comedy_themes:      themes,
+        set_lengths:        setLengths,
+        payment_methods:    payments,
+        languages_spoken:   languages,
+        share_demographics: shareDemo,
+        gender_identity:    shareDemo ? genderIds    : [],
+        race_ethnicity:     shareDemo ? ethnicities  : [],
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch { /* ignore */ }
     setSaving(false);
   };
 
-  if (loading) {
-    return (
-      <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-red-500 opacity-60" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -300,66 +342,202 @@ const EditProfile: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) =
         <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-8">Edit Profile</h2>
 
         <div className="space-y-5 max-w-2xl">
-          {role === 'comedian' && (
+
+          {/* ── Public: Basics ── */}
+          <SectionHeader title="Profile" />
+          <Field label="Stage Name" value={fields.comedian_name ?? ''} onChange={v => set('comedian_name', v)} placeholder="Your public performer name" />
+          <Field label="Profile Image URL" value={fields.comedian_image ?? ''} onChange={v => set('comedian_image', v)} placeholder="https://…" type="url" hint="Direct link to your headshot. File upload coming soon." />
+          <Field label="Bio" value={fields.bio ?? ''} onChange={v => set('bio', v)} placeholder="Tell bookers and fans about yourself" textarea />
+          <Field label="Location" value={fields.location ?? ''} onChange={v => set('location', v)} placeholder="e.g. Los Angeles, CA" />
+          <Field label="Website" value={fields.comedian_website ?? ''} onChange={v => set('comedian_website', v)} placeholder="https://yoursite.com" type="url" />
+          <Field label="Featured Comedy Clip" value={fields.comedy_clip_link ?? ''} onChange={v => set('comedy_clip_link', v)} placeholder="YouTube or Vimeo link" type="url" />
+
+          {/* ── Public: Performance ── */}
+          <SectionHeader title="Performance" subtitle="Public filters — how bookers and fans find you" />
+          <SelectField label="Experience Level" value={fields.experience_level ?? ''} onChange={v => set('experience_level', v)} options={EXPERIENCE_LEVELS} placeholder="Select level…" />
+          <MultiSelect label="Comedy Styles"  options={COMEDY_STYLES}  selected={styles}     onChange={setStyles}     />
+          <MultiSelect label="Comedy Vibes"   options={COMEDY_VIBES}   selected={vibes}      onChange={setVibes}      />
+          <MultiSelect label="Comedy Themes"  options={COMEDY_THEMES}  selected={themes}     onChange={setThemes}     hint="Optional" />
+          <MultiSelect label="Set Lengths"    options={SET_LENGTHS}    selected={setLengths} onChange={setSetLengths} />
+
+          {/* ── Public: Booking ── */}
+          <SectionHeader title="Booking" />
+          <SelectField label="Rate Range" value={fields.rate_range ?? ''} onChange={v => set('rate_range', v)} options={RATE_RANGES} placeholder="Select rate…" />
+          <MultiSelect label="Payment Methods"  options={PAYMENT_METHODS} selected={payments}  onChange={setPayments}  />
+          <MultiSelect label="Languages Spoken" options={LANGUAGES}        selected={languages} onChange={setLanguages} />
+
+          {/* ── Public: Social Links ── */}
+          <SectionHeader title="Social Links" />
+          <Field label="Instagram" value={fields.instagram_link ?? ''} onChange={v => set('instagram_link', v)} placeholder="https://instagram.com/yourhandle" type="url" />
+          <Field label="TikTok"    value={fields.tiktok_link    ?? ''} onChange={v => set('tiktok_link', v)}    placeholder="https://tiktok.com/@yourhandle"   type="url" />
+          <Field label="X / Twitter" value={fields.x_link       ?? ''} onChange={v => set('x_link', v)}        placeholder="https://x.com/yourhandle"         type="url" />
+          <Field label="Facebook"  value={fields.facebook_link  ?? ''} onChange={v => set('facebook_link', v)} placeholder="https://facebook.com/yourpage"     type="url" />
+          <Field label="YouTube"   value={fields.youtube_link   ?? ''} onChange={v => set('youtube_link', v)}  placeholder="https://youtube.com/@yourchannel"  type="url" />
+          <Field label="IMDb"      value={fields.imdb_link      ?? ''} onChange={v => set('imdb_link', v)}     placeholder="https://imdb.com/name/…"          type="url" />
+
+          {/* ── Private: Demographics ── */}
+          <SectionHeader title="Demographics" subtitle="Private — never shown publicly. Helps us measure representation in comedy." />
+          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950 border border-slate-800">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-widest text-white">Share Demographics</h4>
+              <p className="text-[10px] text-slate-500 mt-1 font-medium">Opt in to share gender identity and ethnicity.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShareDemo(v => !v)}
+              className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${shareDemo ? 'bg-red-600' : 'bg-slate-700'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${shareDemo ? 'translate-x-6' : ''}`} />
+            </button>
+          </div>
+          {shareDemo && (
             <>
-              <Field label="Display Name" value={fields.comedian_name ?? ''} onChange={v => set('comedian_name', v)} placeholder="Your stage name" />
-              <Field label="Bio" value={fields.bio ?? ''} onChange={v => set('bio', v)} placeholder="Tell bookers and fans about yourself" textarea />
-              <Field label="Current City" value={fields.current_city ?? ''} onChange={v => set('current_city', v)} placeholder="e.g. Los Angeles, CA" />
-              <Field label="Website" value={fields.comedian_website ?? ''} onChange={v => set('comedian_website', v)} placeholder="https://yoursite.com" type="url" />
-              <Field label="Comedy Clip" value={fields.comedy_clip_link ?? ''} onChange={v => set('comedy_clip_link', v)} placeholder="YouTube or Vimeo link" type="url" />
-
-              <hr className="border-slate-800" />
-              <h3 className="text-xs font-black italic uppercase tracking-widest text-slate-400">Social Links</h3>
-
-              <Field label="Instagram" value={fields.instagram_link ?? ''} onChange={v => set('instagram_link', v)} placeholder="https://instagram.com/yourhandle" type="url" />
-              <Field label="TikTok" value={fields.tiktok_link ?? ''} onChange={v => set('tiktok_link', v)} placeholder="https://tiktok.com/@yourhandle" type="url" />
-              <Field label="X / Twitter" value={fields.x_link ?? ''} onChange={v => set('x_link', v)} placeholder="https://x.com/yourhandle" type="url" />
-              <Field label="Facebook" value={fields.facebook_link ?? ''} onChange={v => set('facebook_link', v)} placeholder="https://facebook.com/yourpage" type="url" />
-              <Field label="YouTube" value={fields.youtube_link ?? ''} onChange={v => set('youtube_link', v)} placeholder="https://youtube.com/@yourchannel" type="url" />
-              <Field label="IMDb" value={fields.imdb_link ?? ''} onChange={v => set('imdb_link', v)} placeholder="https://imdb.com/name/..." type="url" />
-
-              <hr className="border-slate-800" />
-              <h3 className="text-xs font-black italic uppercase tracking-widest text-slate-400">How Bookers & Fans Find You</h3>
-
-              <MultiSelect label="Comedy Style" options={COMEDY_STYLES} selected={styles} onChange={setStyles} />
-              <MultiSelect label="Comedy Vibe" options={COMEDY_VIBES} selected={vibes} onChange={setVibes} />
-              <MultiSelect label="Comedy Themes" hint="Optional" options={COMEDY_THEMES} selected={themes} onChange={setThemes} />
-            </>
-          )}
-
-          {role === 'organizer' && (
-            <>
-              <Field label="Display Name" value={fields.display_name ?? ''} onChange={v => set('display_name', v)} placeholder="Your name or organisation" />
-              <Field label="Bio" value={fields.bio ?? ''} onChange={v => set('bio', v)} placeholder="Tell comedians about the shows you run" textarea />
-              <Field label="Phone" value={fields.phone ?? ''} onChange={v => set('phone', v)} placeholder="+1 (555) 000-0000" type="tel" />
-              <div className="grid sm:grid-cols-2 gap-5">
-                <Field label="City" value={fields.city ?? ''} onChange={v => set('city', v)} placeholder="e.g. New York" />
-                <Field label="State" value={fields.state ?? ''} onChange={v => set('state', v)} placeholder="e.g. NY" />
-              </div>
-            </>
-          )}
-
-          {(role === 'fan' || role === 'venue') && (
-            <>
-              <Field label="Display Name" value={fields.display_name ?? ''} onChange={v => set('display_name', v)} placeholder="How should we address you?" />
-              <Field label="Location" value={fields.location ?? ''} onChange={v => set('location', v)} placeholder="e.g. Chicago, IL" />
+              <MultiSelect label="Gender Identity" options={GENDER_OPTIONS}    selected={genderIds}    onChange={setGenderIds}    />
+              <MultiSelect label="Race / Ethnicity" options={ETHNICITY_OPTIONS} selected={ethnicities}  onChange={setEthnicities}  />
             </>
           )}
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving || saved}
-          className={`mt-8 flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase italic tracking-widest transition-all ${
-            saved
-              ? 'bg-emerald-600 text-white cursor-default'
-              : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed'
-          }`}
-        >
-          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          {saved   && <Check className="w-3.5 h-3.5" />}
-          {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Changes'}
-        </button>
+        <SaveButton saving={saving} saved={saved} onClick={handleSave} />
+      </div>
+    </div>
+  );
+};
+
+// ── Organizer Edit Profile ─────────────────────────────────────────────────────
+
+const OrganizerEditProfile: React.FC<{ uid: string }> = ({ uid }) => {
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [fields, setFields]     = useState<Record<string, string>>({});
+  const [roles, setRoles]       = useState<string[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [uSnap, oSnap] = await Promise.all([
+          getDoc(doc(db, 'users', uid)),
+          getDoc(doc(db, 'organizers', uid)),
+        ]);
+        const u = uSnap.data() ?? {};
+        const o = oSnap.data() ?? {};
+        setFields({
+          display_name:  u.display_name  ?? '',
+          city:          o.city          ?? '',
+          state:         o.state         ?? '',
+          bio:           o.bio           ?? '',
+          contact_email: o.contact_email ?? '',
+          phone:         o.phone         ?? '',
+        });
+        setRoles(o.organizer_roles ?? []);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  const set = (k: string, v: string) => setFields(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { display_name, city, state, bio, contact_email, phone } = fields;
+      await Promise.all([
+        updateDoc(doc(db, 'users',      uid), { display_name }),
+        updateDoc(doc(db, 'organizers', uid), {
+          display_name, city, state, bio, contact_email, phone,
+          organizer_roles: roles,
+        }),
+      ]);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  if (loading) return (
+    <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-8">Edit Profile</h2>
+
+        <div className="space-y-5 max-w-2xl">
+          <SectionHeader title="Public Profile" />
+          <Field label="Display Name" value={fields.display_name ?? ''} onChange={v => set('display_name', v)} placeholder="Your name or organisation" />
+          <Field label="Bio" value={fields.bio ?? ''} onChange={v => set('bio', v)} placeholder="Tell comedians about the shows you run" textarea />
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Field label="City"  value={fields.city  ?? ''} onChange={v => set('city', v)}  placeholder="e.g. New York" />
+            <Field label="State" value={fields.state ?? ''} onChange={v => set('state', v)} placeholder="e.g. NY" />
+          </div>
+          <MultiSelect label="Organizer Roles" options={ORGANIZER_ROLES} selected={roles} onChange={setRoles} />
+
+          <SectionHeader title="Private Contact Info" subtitle="Not shown publicly — used for platform communications only." />
+          <Field label="Contact Email" value={fields.contact_email ?? ''} onChange={v => set('contact_email', v)} placeholder="booking@yourcompany.com" type="email" />
+          <Field label="Phone"         value={fields.phone         ?? ''} onChange={v => set('phone', v)}         placeholder="+1 (555) 000-0000"         type="tel" />
+        </div>
+
+        <SaveButton saving={saving} saved={saved} onClick={handleSave} />
+      </div>
+    </div>
+  );
+};
+
+// ── Fan Edit Profile ───────────────────────────────────────────────────────────
+
+const FanEditProfile: React.FC<{ uid: string }> = ({ uid }) => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [fields, setFields]   = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        const data = snap.data() ?? {};
+        setFields({
+          display_name: data.display_name ?? '',
+          location:     data.location     ?? '',
+        });
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  const set = (k: string, v: string) => setFields(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', uid), fields);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  if (loading) return (
+    <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-8">Edit Profile</h2>
+        <div className="space-y-5 max-w-2xl">
+          <Field label="Display Name" value={fields.display_name ?? ''} onChange={v => set('display_name', v)} placeholder="How should we address you?" />
+          <Field label="Location"     value={fields.location     ?? ''} onChange={v => set('location', v)}     placeholder="e.g. Chicago, IL" />
+        </div>
+        <SaveButton saving={saving} saved={saved} onClick={handleSave} />
       </div>
     </div>
   );
@@ -403,13 +581,11 @@ const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
     setSaving(false);
   };
 
-  if (loading) {
-    return (
-      <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
 
   return (
     <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
@@ -418,9 +594,9 @@ const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
         Private — used to surface shows, comedians, and clips that match your taste.
       </p>
       <div className="space-y-6">
-        <MultiSelect label="Comedy Style" options={COMEDY_STYLES} selected={styles} onChange={setStyles} />
-        <MultiSelect label="Comedy Vibe" options={COMEDY_VIBES} selected={vibes} onChange={setVibes} />
-        <MultiSelect label="Comedy Themes" hint="Optional" options={COMEDY_THEMES} selected={themes} onChange={setThemes} />
+        <MultiSelect label="Comedy Style"   options={COMEDY_STYLES}  selected={styles}  onChange={setStyles}  />
+        <MultiSelect label="Comedy Vibe"    options={COMEDY_VIBES}   selected={vibes}   onChange={setVibes}   />
+        <MultiSelect label="Comedy Themes"  options={COMEDY_THEMES}  selected={themes}  onChange={setThemes}  hint="Optional" />
       </div>
       <button
         onClick={handleSave}
@@ -432,7 +608,7 @@ const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
         }`}
       >
         {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-        {saved   && <Check className="w-3.5 h-3.5" />}
+        {saved   && <Check   className="w-3.5 h-3.5" />}
         {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Preferences'}
       </button>
     </div>
@@ -453,10 +629,7 @@ const ActionCards = () => (
           <p className="text-[10px] text-slate-500 font-medium mt-0.5">Plan a show, set a date, and sell tickets.</p>
         </div>
       </div>
-      <button
-        disabled
-        className="w-full flex items-center justify-center gap-2 bg-red-600/10 border border-red-600/20 text-red-400 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest cursor-not-allowed opacity-60"
-      >
+      <button disabled className="w-full flex items-center justify-center gap-2 bg-red-600/10 border border-red-600/20 text-red-400 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest cursor-not-allowed opacity-60">
         Coming Soon <ArrowRight className="w-3.5 h-3.5" />
       </button>
     </div>
@@ -471,10 +644,7 @@ const ActionCards = () => (
           <p className="text-[10px] text-slate-500 font-medium mt-0.5">Find and invite comedians to your shows.</p>
         </div>
       </div>
-      <button
-        disabled
-        className="w-full flex items-center justify-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest cursor-not-allowed opacity-60"
-      >
+      <button disabled className="w-full flex items-center justify-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest cursor-not-allowed opacity-60">
         Coming Soon <ArrowRight className="w-3.5 h-3.5" />
       </button>
     </div>
@@ -559,14 +729,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
   const firstName   = displayName.split(' ')[0];
   const initial     = displayName[0]?.toUpperCase() ?? '?';
 
-  const navItems  = NAV_ITEMS[role]  ?? NAV_ITEMS.fan;
-  const stats     = STATS[role]      ?? STATS.fan;
+  const navItems  = NAV_ITEMS[role]   ?? NAV_ITEMS.fan;
+  const stats     = STATS[role]       ?? STATS.fan;
   const roleLabel = ROLE_LABELS[role] ?? 'Member';
 
   const renderHome = () => (
     <div className="space-y-6 animate-in fade-in duration-500">
 
-      {/* Welcome Banner */}
       <div className="glass-card p-8 rounded-[2.5rem] border-slate-800 bg-gradient-to-br from-red-600/10 to-transparent relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-600/10 blur-[100px] rounded-full" />
         <div className="relative z-10">
@@ -577,10 +746,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
         </div>
       </div>
 
-      {/* Action Buttons — Comedian & Organizer only */}
       {(role === 'comedian' || role === 'organizer') && <ActionCards />}
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s, i) => (
           <div key={i} className="glass-card p-5 rounded-3xl border-slate-800/50 hover:bg-slate-900/50 transition-all group">
@@ -595,7 +762,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
         ))}
       </div>
 
-      {/* Bottom section: capabilities + Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           {role === 'fan'       && <FanCapabilities />}
@@ -632,9 +798,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
                 <p className="text-xs text-slate-500">Get local gigs and trending shows in your city.</p>
               </div>
               <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
-                <option>London</option>
-                <option>New York</option>
-                <option>Austin</option>
+                <option>London</option><option>New York</option><option>Austin</option>
               </select>
             </div>
             <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
@@ -643,10 +807,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
                 <p className="text-xs text-slate-500">Choose how often you want to hear from us.</p>
               </div>
               <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
-                <option>Weekly (Enthusiast)</option>
-                <option>Bi-Weekly (Regular)</option>
-                <option>Monthly (Occasional)</option>
-                <option>Event-Based Only</option>
+                <option>Weekly (Enthusiast)</option><option>Bi-Weekly (Regular)</option>
+                <option>Monthly (Occasional)</option><option>Event-Based Only</option>
               </select>
             </div>
           </div>
@@ -678,6 +840,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
       </div>
     </div>
   );
+
+  const renderEditProfile = () => {
+    if (!authUser) return null;
+    if (role === 'comedian')  return <ComedianEditProfile  uid={authUser.uid} />;
+    if (role === 'organizer') return <OrganizerEditProfile uid={authUser.uid} />;
+    return <FanEditProfile uid={authUser.uid} />;
+  };
 
   return (
     <div className="min-h-screen pt-4 lg:pt-12 pb-24 px-4 sm:px-6">
@@ -747,9 +916,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
         <div className="min-w-0">
           {activeTab === 'home'         && renderHome()}
           {activeTab === 'settings'     && renderSettings()}
-          {activeTab === 'edit-profile' && authUser && (
-            <EditProfile uid={authUser.uid} role={role} />
-          )}
+          {activeTab === 'edit-profile' && renderEditProfile()}
           {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && (
             <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 text-center text-slate-500 flex flex-col items-center justify-center italic font-bold opacity-50 uppercase tracking-[0.2em] text-xs">
               <Zap className="w-12 h-12 mb-4 animate-pulse" />
