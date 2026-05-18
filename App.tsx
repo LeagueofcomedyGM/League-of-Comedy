@@ -119,6 +119,7 @@ function App() {
           } catch {
             // Firestore unavailable — continue anyway
           }
+          setUserRole(userType as UserRole);
           sessionStorage.removeItem('loc_pending_user_type');
           setVerificationState(null);
           navigateTo(PageType.DASHBOARD, 'edit-profile');
@@ -257,6 +258,7 @@ function App() {
             setVerificationState({ email, userType });
             setIsAuthModalOpen(false);
           }}
+          onRoleSet={(role) => setUserRole(role as UserRole)}
         />
       )}
     </div>

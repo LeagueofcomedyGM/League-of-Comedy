@@ -24,6 +24,7 @@ interface AuthPageProps {
   onClose: () => void;
   navigateTo: (page: PageType, tab?: string) => void;
   onVerificationPending: (email: string, userType: string) => void;
+  onRoleSet: (role: string) => void;
 }
 
 const MODAL_WRAPPER = "fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto";
@@ -43,6 +44,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   onClose,
   navigateTo,
   onVerificationPending,
+  onRoleSet,
 }) => {
   const [mode, setMode] = useState<'signin' | 'signup' | 'verify'>(initialMode);
   const [signupStep, setSignupStep] = useState<'type-select' | 'credentials'>('type-select');
@@ -156,11 +158,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         try {
           const profile = await getUserProfile(user.uid);
           if (profile.found) {
+            if (profile.userType) onRoleSet(profile.userType);
             navigateTo(PageType.DASHBOARD);
             onClose();
             return;
           }
           const result = await handleUserSignup(user.uid, user.email!, selectedUserType!);
+          onRoleSet(selectedUserType!);
           sessionStorage.removeItem('loc_pending_user_type');
           if (result.status === 'claimed') {
             setToast('Welcome back! We found your existing profile.');
@@ -174,7 +178,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           onClose();
         }
       } else {
-        try { await getUserProfile(user.uid); } catch { /* Firestore unavailable */ }
+        try {
+          const profile = await getUserProfile(user.uid);
+          if (profile.found && profile.userType) onRoleSet(profile.userType);
+        } catch { /* Firestore unavailable */ }
         navigateTo(PageType.DASHBOARD);
         onClose();
       }
