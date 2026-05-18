@@ -204,7 +204,7 @@ function App() {
       case PageType.ORGANIZER_MANAGEMENT_CENTER:
         return <OrganizerManagementCenter />;
       case PageType.DASHBOARD:
-        return <UserDashboard role={userRole} authUser={authUser} />;
+        return <UserDashboard role={userRole} authUser={authUser} initialTab={initialTab} />;
       default:
         return <Home navigateTo={navigateTo} onPostSpot={() => setIsPostModalOpen(true)} />;
     }
