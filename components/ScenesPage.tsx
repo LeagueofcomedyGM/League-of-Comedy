@@ -69,6 +69,14 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const sceneSlug = initialTab ?? 'los-angeles';
 
   useEffect(() => {
+    setRosterComedians([]);
+    setLoadingRoster(true);
+
+    const cityName = sceneSlug
+      .split('-')
+      .map(w => w[0].toUpperCase() + w.slice(1))
+      .join(' ');
+
     async function loadRoster() {
       try {
         const snap = await getDocs(
@@ -79,23 +87,26 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
             const data = d.data();
             return {
               docId:     d.id,
-              name:      data.comedian_name      ?? '',
-              image:     data.comedian_image      ?? '',
-              location:  data.location            ?? '',
-              level:     data.experience_level    ?? '',
-              styles:    data.comedy_styles       ?? [],
-              instagram: data.instagram_link      ?? '',
-              xLink:     data.x_link              ?? '',
-              youtube:   data.youtube_link        ?? '',
+              name:      data.comedian_name   ?? '',
+              image:     data.comedian_image  ?? '',
+              location:  data.location        ?? '',
+              level:     data.experience_level ?? '',
+              styles:    data.comedy_styles   ?? [],
+              instagram: data.instagram_link  ?? '',
+              xLink:     data.x_link          ?? '',
+              youtube:   data.youtube_link    ?? '',
             };
           })
-          .filter(c => c.name.trim() !== '');
+          .filter(c =>
+            c.name.trim() !== '' &&
+            c.location.toLowerCase().includes(cityName.toLowerCase())
+          );
         setRosterComedians(comedians);
       } catch { /* ignore */ }
       setLoadingRoster(false);
     }
     loadRoster();
-  }, []);
+  }, [sceneSlug]);
 
   useEffect(() => {
     setIsFollowed(false);
