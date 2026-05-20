@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
-  doc, getDoc, updateDoc,
+  doc, getDoc, updateDoc, setDoc,
   collection, query, where, limit, getDocs,
+  arrayRemove, increment,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserRole } from '../types';
@@ -875,6 +876,157 @@ const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
   );
 };
 
+// ── Scene metadata ─────────────────────────────────────────────────────────────
+
+const SCENE_META: Record<string, { name: string; location: string }> = {
+  'los-angeles': { name: 'Los Angeles', location: 'Los Angeles, CA' },
+  'new-york':    { name: 'New York',    location: 'New York, NY' },
+  'london':      { name: 'London',      location: 'London, UK' },
+  'chicago':     { name: 'Chicago',     location: 'Chicago, IL' },
+  'austin':      { name: 'Austin',      location: 'Austin, TX' },
+  'manchester':  { name: 'Manchester',  location: 'Manchester, UK' },
+  'toronto':     { name: 'Toronto',     location: 'Toronto, ON' },
+};
+
+const slugToName     = (s: string) => SCENE_META[s]?.name     ?? s.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+const slugToLocation = (s: string) => SCENE_META[s]?.location ?? '';
+
+// ── Following tab ──────────────────────────────────────────────────────────────
+
+const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
+  const [sceneSlugs,  setSceneSlugs]  = useState<string[]>([]);
+  const [sceneCounts, setSceneCounts] = useState<Record<string, number>>({});
+  const [loading,     setLoading]     = useState(true);
+  const [unfollowing, setUnfollowing] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        const slugs: string[] = userSnap.data()?.following_scenes ?? [];
+        setSceneSlugs(slugs);
+
+        if (slugs.length > 0) {
+          const counts: Record<string, number> = {};
+          await Promise.all(slugs.map(async slug => {
+            const snap = await getDoc(doc(db, 'scenes', slug));
+            if (snap.exists()) counts[slug] = snap.data().follower_count ?? 0;
+          }));
+          setSceneCounts(counts);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  const handleUnfollow = async (slug: string) => {
+    setUnfollowing(slug);
+    setSceneSlugs(prev => prev.filter(s => s !== slug));
+    try {
+      await Promise.all([
+        updateDoc(doc(db, 'users', uid), { following_scenes: arrayRemove(slug) }),
+        setDoc(doc(db, 'scenes', slug), { follower_count: increment(-1) }, { merge: true }),
+      ]);
+    } catch {
+      setSceneSlugs(prev => [...prev, slug]);
+    }
+    setUnfollowing(null);
+  };
+
+  if (loading) return (
+    <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+
+      {/* Scenes */}
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
+          <MapPin className="w-4 h-4 text-red-500" />
+          <h3 className="text-sm font-black italic uppercase tracking-widest">Scenes</h3>
+          {sceneSlugs.length > 0 && (
+            <span className="ml-auto text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              {sceneSlugs.length} followed
+            </span>
+          )}
+        </div>
+
+        {sceneSlugs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+            <MapPin className="w-8 h-8 opacity-30" />
+            <p className="text-[10px] font-bold uppercase tracking-widest">No scenes followed yet</p>
+            <p className="text-[11px] font-medium text-slate-700">Browse Scenes and hit Follow Scene to get started.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {sceneSlugs.map(slug => (
+              <div key={slug} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-600/20 flex items-center justify-center shrink-0">
+                    <MapPin className="w-4 h-4 text-red-500" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black italic uppercase tracking-tight">{slugToName(slug)}</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">{slugToLocation(slug)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-5">
+                  {sceneCounts[slug] != null && (
+                    <div className="text-right hidden sm:block">
+                      <p className="text-xs font-black text-white">{sceneCounts[slug].toLocaleString()}</p>
+                      <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">followers</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleUnfollow(slug)}
+                    disabled={unfollowing === slug}
+                    className="flex items-center justify-center px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest border border-slate-700 text-slate-400 hover:border-red-600 hover:text-red-400 transition-all disabled:opacity-40 min-w-[80px]"
+                  >
+                    {unfollowing === slug
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : 'Unfollow'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Comedians */}
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
+          <Mic2 className="w-4 h-4 text-amber-500" />
+          <h3 className="text-sm font-black italic uppercase tracking-widest">Comedians</h3>
+        </div>
+        <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+          <Users className="w-8 h-8 opacity-30" />
+          <p className="text-[10px] font-bold uppercase tracking-widest">No comedians followed yet</p>
+          <p className="text-[11px] font-medium text-slate-700">Follow comedians from their roster cards.</p>
+        </div>
+      </div>
+
+      {/* Organizers */}
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
+          <Briefcase className="w-4 h-4 text-blue-400" />
+          <h3 className="text-sm font-black italic uppercase tracking-widest">Organizers</h3>
+        </div>
+        <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+          <Users className="w-8 h-8 opacity-30" />
+          <p className="text-[10px] font-bold uppercase tracking-widest">No organizers followed yet</p>
+          <p className="text-[11px] font-medium text-slate-700">Organizer profiles coming soon.</p>
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
 // ── Action cards (Comedian + Organizer only) ───────────────────────────────────
 
 const ActionCards: React.FC<{ onPostGig: () => void }> = ({ onPostGig }) => (
@@ -1156,7 +1308,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
           {activeTab === 'home'         && renderHome()}
           {activeTab === 'settings'     && renderSettings()}
           {activeTab === 'edit-profile' && renderEditProfile()}
-          {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && (
+          {activeTab === 'following'    && authUser && <FollowingTab uid={authUser.uid} />}
+          {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && activeTab !== 'following' && (
             <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 text-center text-slate-500 flex flex-col items-center justify-center italic font-bold opacity-50 uppercase tracking-[0.2em] text-xs">
               <Zap className="w-12 h-12 mb-4 animate-pulse" />
               Feature Incoming

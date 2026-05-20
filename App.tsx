@@ -191,7 +191,7 @@ function App() {
       case PageType.OPPORTUNITIES:
         return <OpportunityBoard role={userRole} onPostSpot={() => setIsPostModalOpen(true)} />;
       case PageType.SCENES:
-        return <ScenesPage navigateTo={navigateTo} initialTab={initialTab} />;
+        return <ScenesPage navigateTo={navigateTo} initialTab={initialTab} authUser={authUser} />;
       case PageType.HOW_TO_GET_GIGS:
         return <HowToGetGigs />;
       case PageType.ORGANIZER_GETTING_STARTED:

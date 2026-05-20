@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { User as FirebaseUser } from 'firebase/auth';
+import {
+  doc, getDoc, updateDoc, setDoc,
+  arrayUnion, arrayRemove, increment,
+} from 'firebase/firestore';
+import { db } from '../firebase';
 import { 
-  Check, 
+  Check,
+  Loader2,
   Zap, 
   Star, 
   Shield, 
@@ -29,13 +36,39 @@ import { PageType, UserRole } from '../types';
 interface ScenesPageProps {
   navigateTo: (page: PageType, tab?: string) => void;
   initialTab?: string | null;
+  authUser?: FirebaseUser | null;
 }
 
-export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab }) => {
+export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, authUser }) => {
   const [activeTab, setActiveTab] = useState('SHOWS');
   const [isFollowed, setIsFollowed] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [following, setFollowing] = useState(false);
+  const [hoverFollow, setHoverFollow] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const sceneSlug = initialTab ?? 'los-angeles';
+
+  useEffect(() => {
+    if (!authUser) { setIsFollowed(false); return; }
+
+    async function loadFollowState() {
+      try {
+        const [userSnap, sceneSnap] = await Promise.all([
+          getDoc(doc(db, 'users', authUser!.uid)),
+          getDoc(doc(db, 'scenes', sceneSlug)),
+        ]);
+        const scenes: string[] = userSnap.data()?.following_scenes ?? [];
+        setIsFollowed(scenes.includes(sceneSlug));
+        if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
+          setFollowerCount(sceneSnap.data().follower_count as number);
+        }
+      } catch { /* ignore */ }
+    }
+
+    loadFollowState();
+  }, [authUser, sceneSlug]);
 
   const AVAILABLE_SCENES = [
     { name: "Los Angeles", slug: "los-angeles", region: "CA", country: "USA" },
@@ -103,8 +136,34 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab }
     { id: 3, comedian: "Lizzy Laughs", title: "Clean Comedy Special", thumbnail: "https://picsum.photos/seed/clip3/400/225" },
   ];
 
-  const handleFollowClick = () => {
-    alert("Please sign in to follow this scene.");
+  const handleFollowClick = async () => {
+    if (!authUser) {
+      alert("Please sign in to follow this scene.");
+      return;
+    }
+    const nowFollowing = !isFollowed;
+
+    // Optimistic update — UI responds immediately
+    setIsFollowed(nowFollowing);
+    setFollowerCount(c => c + (nowFollowing ? 1 : -1));
+    setFollowing(true);
+
+    try {
+      await Promise.all([
+        updateDoc(doc(db, 'users', authUser.uid), {
+          following_scenes: nowFollowing ? arrayUnion(sceneSlug) : arrayRemove(sceneSlug),
+        }),
+        setDoc(doc(db, 'scenes', sceneSlug), {
+          slug: sceneSlug,
+          follower_count: increment(nowFollowing ? 1 : -1),
+        }, { merge: true }),
+      ]);
+    } catch {
+      // Roll back on failure
+      setIsFollowed(!nowFollowing);
+      setFollowerCount(c => c + (nowFollowing ? -1 : 1));
+    }
+    setFollowing(false);
   };
 
   const renderShows = (shows: typeof mockShows) => (
@@ -461,14 +520,31 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab }
             <div className="flex items-center gap-8 bg-[#0f1628]/80 backdrop-blur-xl p-4 px-8 rounded-3xl border border-white/5">
               <div className="text-center">
                 <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">FOLLOWERS</p>
-                <p className="text-2xl font-black text-white italic uppercase">{sceneData.followers}</p>
+                <p className="text-2xl font-black text-white italic uppercase">{followerCount.toLocaleString()}</p>
               </div>
               <div className="h-10 w-px bg-white/10"></div>
-              <button 
+              <button
                 onClick={handleFollowClick}
-                className="bg-brand-gradient hover:opacity-90 text-white px-8 py-3 rounded-2xl text-sm font-black italic uppercase tracking-widest shadow-xl transition-all active:scale-95"
+                disabled={following}
+                onMouseEnter={() => setHoverFollow(true)}
+                onMouseLeave={() => setHoverFollow(false)}
+                className={`flex items-center gap-2 px-8 py-3 rounded-2xl text-sm font-black italic uppercase tracking-widest shadow-xl transition-all active:scale-95 disabled:cursor-not-allowed ${
+                  following
+                    ? 'bg-white/10 border border-white/20 text-white opacity-60'
+                    : isFollowed
+                      ? hoverFollow
+                        ? 'bg-red-600 text-white'
+                        : 'bg-emerald-600 text-white'
+                      : 'bg-brand-gradient hover:opacity-90 text-white'
+                }`}
               >
-                FOLLOW SCENE
+                {following
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                  : isFollowed
+                    ? hoverFollow
+                      ? 'Unfollow'
+                      : <><Check className="w-4 h-4" /> Following</>
+                    : 'Follow Scene'}
               </button>
             </div>
           </div>
