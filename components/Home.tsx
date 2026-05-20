@@ -1,8 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { User as FirebaseUser } from 'firebase/auth';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { db } from '../firebase';
 import { PageType } from '../types';
-import { 
-  Calendar, 
+import {
+  Calendar,
   ChevronRight,
   Zap,
   Ticket,
@@ -35,27 +38,116 @@ import {
   Music,
   Info,
   CheckCircle,
-  Smile
+  Smile,
+  Check,
+  Loader2
 } from 'lucide-react';
+
+interface HomeRosterComedian {
+  docId:     string;
+  name:      string;
+  image:     string;
+  location:  string;
+  level:     string;
+  styles:    string[];
+  instagram: string;
+  xLink:     string;
+  youtube:   string;
+  followerCount: number;
+}
 
 interface HomeProps {
   navigateTo: (page: PageType, tab?: string) => void;
   onPostSpot: () => void;
   initialTab?: string | null;
+  authUser?: FirebaseUser | null;
 }
 
-export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }) => {
+export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab, authUser }) => {
   const [activeTab, setActiveTab] = useState<string | null>(initialTab || null);
-  const [selectedComedianId, setSelectedComedianId] = useState<number | null>(null);
+  const [selectedComedianId, setSelectedComedianId] = useState<string | null>(null);
   const [alphabetFilter, setAlphabetFilter] = useState<string | null>(null);
   const [isMobileAlphabetOpen, setIsMobileAlphabetOpen] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState('USA');
+  const [rosterComedians,     setRosterComedians]     = useState<HomeRosterComedian[]>([]);
+  const [loadingRoster,       setLoadingRoster]       = useState(true);
+  const [followingComedians,  setFollowingComedians]  = useState<Set<string>>(new Set());
+  const [followingComedianId, setFollowingComedianId] = useState<string | null>(null);
+  const [hoverComedianId,     setHoverComedianId]     = useState<string | null>(null);
 
   const countries = ['USA', 'UK', 'Canada', 'Australia', 'France', 'Germany', 'India'];
 
   React.useEffect(() => {
     setActiveTab(initialTab || null);
   }, [initialTab]);
+
+  useEffect(() => {
+    async function loadComedians() {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'comedians'), where('claimed', '==', true))
+        );
+        const comedians: HomeRosterComedian[] = snap.docs
+          .map(d => {
+            const data = d.data();
+            return {
+              docId:         d.id,
+              name:          data.comedian_name    ?? '',
+              image:         data.comedian_image    ?? '',
+              location:      data.location          ?? '',
+              level:         data.experience_level  ?? '',
+              styles:        data.comedy_styles     ?? [],
+              instagram:     data.instagram_link    ?? '',
+              xLink:         data.x_link            ?? '',
+              youtube:       data.youtube_link      ?? '',
+              followerCount: data.follower_count    ?? 0,
+            };
+          })
+          .filter(c => c.name.trim() !== '');
+        setRosterComedians(comedians);
+      } catch { /* ignore */ }
+      setLoadingRoster(false);
+    }
+    loadComedians();
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) { setFollowingComedians(new Set()); return; }
+    async function loadFollowing() {
+      try {
+        const snap = await getDoc(doc(db, 'users', authUser!.uid));
+        const ids: string[] = snap.data()?.following_comedians ?? [];
+        setFollowingComedians(new Set(ids));
+      } catch { /* ignore */ }
+    }
+    loadFollowing();
+  }, [authUser]);
+
+  const handleComedianFollow = async (comedianId: string) => {
+    if (!authUser) {
+      alert("Please sign in to follow comedians.");
+      return;
+    }
+    const nowFollowing = !followingComedians.has(comedianId);
+    setFollowingComedians(prev => {
+      const next = new Set(prev);
+      nowFollowing ? next.add(comedianId) : next.delete(comedianId);
+      return next;
+    });
+    setFollowingComedianId(comedianId);
+    try {
+      await updateDoc(doc(db, 'users', authUser.uid), {
+        following_comedians: nowFollowing ? arrayUnion(comedianId) : arrayRemove(comedianId),
+      });
+    } catch {
+      setFollowingComedians(prev => {
+        const next = new Set(prev);
+        nowFollowing ? next.delete(comedianId) : next.add(comedianId);
+        return next;
+      });
+    }
+    setFollowingComedianId(null);
+  };
 
   const tabs = [
     { label: 'COMEDY SHOWS', id: 'SHOWS' },
@@ -87,15 +179,6 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
     { icon: <Video className="w-5 h-5" />, label: 'Clips', color: 'bg-purple-500' },
   ];
 
-  const mockComedians = [
-    { id: 1, name: "Julius Carr", location: "New York, USA", level: "HEADLINER", points: 12450, rank: 1, followers: "52k", styles: ["Standup", "Clean"], isVerified: true, isFeatured: true, tier: 'pro' },
-    { id: 2, name: "Sarah Miller", location: "London, UK", level: "PROFESSIONAL", points: 11200, rank: 2, followers: "38k", styles: ["Standup", "Improv"], isVerified: true, isFeatured: true, tier: 'pro' },
-    { id: 3, name: "Funny Bones", location: "Austin, TX", level: "PROFESSIONAL", points: 9850, rank: 3, followers: "21k", styles: ["Sketch"], isVerified: false, isFeatured: false, tier: 'free' },
-    { id: 4, name: "Marcus Vibe", location: "Chicago, IL", level: "INTERMEDIATE", points: 8900, rank: 4, followers: "12k", styles: ["Storytelling"], isVerified: true, isFeatured: false, tier: 'pro' },
-    { id: 5, name: "Lizzy Laughs", location: "Los Angeles, CA", level: "BEGINNER", points: 7600, rank: 5, followers: "8k", styles: ["Clean", "Standup"], isVerified: false, isFeatured: false, tier: 'free' },
-    { id: 6, name: "Alex Joker", location: "Manchester, UK", level: "BEGINNER", points: 4500, rank: 12, followers: "2k", styles: ["Character"], isVerified: false, isFeatured: false, tier: 'free' },
-  ];
-
   const mockVenues = [
     { id: 1, name: "The Comedy Store", city: "London", type: "Club", capacity: "400", rating: 4.9, features: ["Food", "Bar", "Recording"], isVerified: true },
     { id: 2, name: "Top Secret Comedy Club", city: "London", type: "Club", capacity: "200", rating: 4.8, features: ["Bar", "Late Night"], isVerified: true },
@@ -112,64 +195,126 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
     { id: 4, name: "Leiceister Comedy Festival", city: "Leicester", date: "Feb 2026", duration: "19 Days", status: "LIVE NOW", icon: <Zap className="text-green-500" /> },
   ];
 
-  const selectedComedian = mockComedians.find(c => c.id === selectedComedianId);
+  const selectedComedian = rosterComedians.find(c => c.docId === selectedComedianId);
 
-  const renderRoster = () => (
-    <div className="animate-in fade-in duration-500">
-      <div className="mb-10 relative">
-        <div className="hidden md:flex flex-wrap gap-2 items-center">
-          <button onClick={() => setAlphabetFilter(null)} className={`alphabet-pill-all ${!alphabetFilter ? 'active' : ''}`}>All Comedians</button>
-          <div className="flex flex-wrap gap-2">
-            {alphabet.map(letter => (
-              <button key={letter} onClick={() => setAlphabetFilter(letter)} className={`alphabet-pill ${alphabetFilter === letter ? 'active' : ''}`}>{letter}</button>
-            ))}
+  const renderRoster = () => {
+    if (loadingRoster) return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
+      </div>
+    );
+
+    const filtered = alphabetFilter
+      ? rosterComedians.filter(c => c.name[0]?.toUpperCase() === alphabetFilter)
+      : rosterComedians;
+
+    if (filtered.length === 0) return (
+      <div className="flex flex-col items-center justify-center py-20 text-[#8892a4] gap-3">
+        <Mic2 className="w-10 h-10 opacity-20" />
+        <p className="text-[10px] font-bold uppercase tracking-widest">No comedians found</p>
+      </div>
+    );
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="mb-10 relative">
+          <div className="hidden md:flex flex-wrap gap-2 items-center">
+            <button onClick={() => setAlphabetFilter(null)} className={`alphabet-pill-all ${!alphabetFilter ? 'active' : ''}`}>All Comedians</button>
+            <div className="flex flex-wrap gap-2">
+              {alphabet.map(letter => (
+                <button key={letter} onClick={() => setAlphabetFilter(letter)} className={`alphabet-pill ${alphabetFilter === letter ? 'active' : ''}`}>{letter}</button>
+              ))}
+            </div>
+          </div>
+          <div className="md:hidden flex items-center justify-between">
+            <button onClick={() => setAlphabetFilter(null)} className={`alphabet-pill-all ${!alphabetFilter ? 'active' : ''}`}>All Comedians</button>
+            <button onClick={() => setIsMobileAlphabetOpen(true)} className="w-[50px] h-[42px] bg-brand-gradient flex items-center justify-center rounded-lg shadow-lg">
+              <span className="text-white font-black italic text-lg">AZ</span>
+            </button>
           </div>
         </div>
-        <div className="md:hidden flex items-center justify-between">
-          <button onClick={() => setAlphabetFilter(null)} className={`alphabet-pill-all ${!alphabetFilter ? 'active' : ''}`}>All Comedians</button>
-          <button onClick={() => setIsMobileAlphabetOpen(true)} className="w-[50px] h-[42px] bg-brand-gradient flex items-center justify-center rounded-lg shadow-lg">
-            <span className="text-white font-black italic text-lg">AZ</span>
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-        {mockComedians.map(comedian => (
-          <div 
-            key={comedian.id} 
-            onClick={() => setSelectedComedianId(comedian.id)} 
-            className="bg-[#f6a623] md:glass-card p-3 md:p-0 rounded-2xl md:rounded-xl border-none md:border-white/5 flex md:flex-row items-center md:items-stretch gap-4 md:gap-0 hover:brightness-110 md:hover:brightness-100 md:hover:bg-transparent transition-all cursor-pointer overflow-hidden group"
-          >
-            <div className="w-20 h-20 md:w-[40%] md:h-[150px] rounded-xl md:rounded-none overflow-hidden shrink-0">
-              <img src={`https://picsum.photos/seed/com${comedian.id}/400/400`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={comedian.name} />
-            </div>
-            <div className="flex-grow min-w-0 bg-[#f6a623] p-3 md:p-4 flex flex-col justify-center">
-              <h4 className="text-sm md:text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] mb-1 truncate">{comedian.name}</h4>
-              <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-[#e53e3e]" /> {comedian.location}
-              </p>
-              <div className="flex gap-2 mt-2 md:mt-auto">
-                 <button 
-                   className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
-                   style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
-                 >
-                   <Instagram className="w-3 h-3 md:w-4 md:h-4" />
-                 </button>
-                 <button className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                 </button>
-                 <button className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                   <Youtube className="w-3 h-3 md:w-4 md:h-4" />
-                 </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+          {filtered.map(comedian => {
+            const cid         = comedian.docId;
+            const isOwnCard   = authUser?.uid === cid;
+            const isFollowing = followingComedians.has(cid);
+            const isLoading   = followingComedianId === cid;
+            const isHovering  = hoverComedianId === cid;
+
+            return (
+              <div
+                key={cid}
+                onClick={() => setSelectedComedianId(cid)}
+                className="bg-[#f6a623] md:glass-card p-3 md:p-0 rounded-2xl md:rounded-xl border-none md:border-white/5 flex md:flex-row items-center md:items-stretch gap-4 md:gap-0 hover:brightness-110 md:hover:brightness-100 md:hover:bg-transparent transition-all cursor-pointer overflow-hidden group"
+              >
+                <div className="w-20 h-20 md:w-[40%] md:h-[150px] rounded-xl md:rounded-none overflow-hidden shrink-0 bg-slate-800 flex items-center justify-center">
+                  {comedian.image
+                    ? <img src={comedian.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={comedian.name} />
+                    : <Mic2 className="w-8 h-8 text-slate-600" />}
+                </div>
+                <div className="flex-grow min-w-0 bg-[#f6a623] p-3 md:p-4 flex flex-col justify-center">
+                  <h4 className="text-sm md:text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] mb-1 truncate">{comedian.name}</h4>
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-[#e53e3e]" /> {comedian.location || 'Location not set'}
+                  </p>
+                  {comedian.level && (
+                    <p className="text-[9px] font-black uppercase tracking-widest text-[#0a0e1a]/50 mt-0.5">{comedian.level}</p>
+                  )}
+                  <div className="flex items-center justify-between mt-2 md:mt-auto">
+                    <div className="flex gap-2">
+                      {comedian.instagram && (
+                        <button
+                          onClick={e => { e.stopPropagation(); window.open(comedian.instagram, '_blank'); }}
+                          className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
+                          style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
+                        >
+                          <Instagram className="w-3 h-3 md:w-4 md:h-4" />
+                        </button>
+                      )}
+                      {comedian.xLink && (
+                        <button onClick={e => { e.stopPropagation(); window.open(comedian.xLink, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        </button>
+                      )}
+                      {comedian.youtube && (
+                        <button onClick={e => { e.stopPropagation(); window.open(comedian.youtube, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                          <Youtube className="w-3 h-3 md:w-4 md:h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {isOwnCard ? (
+                      <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/40">You</span>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
+                        onMouseEnter={() => setHoverComedianId(cid)}
+                        onMouseLeave={() => setHoverComedianId(null)}
+                        disabled={isLoading}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isLoading
+                            ? 'bg-black/20 text-black/40'
+                            : isFollowing
+                              ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+                              : 'bg-[#0a0e1a] text-white hover:bg-black'
+                        }`}
+                      >
+                        {isLoading
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : isFollowing
+                            ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                            : '+ Follow'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="md:hidden">
-              <ArrowUpRight className="w-4 h-4 text-[#0a0e1a]" />
-            </div>
-          </div>
-        ))}
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderVenues = () => (
     <div className="animate-in fade-in duration-500">
@@ -299,40 +444,53 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
             <ArrowLeft className="w-4 h-4" /> Back to Roster
           </button>
           <div className="h-64 md:h-80 w-full relative">
-            <img src={`https://picsum.photos/seed/cover${selectedComedian.id}/1600/600`} className="w-full h-full object-cover grayscale" />
+            <div className="w-full h-full bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-[#0a0e1a]/40 to-transparent"></div>
           </div>
           <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 flex flex-col items-center">
-            <div className="w-32 h-32 rounded-full border-4 border-[#0a0e1a] overflow-hidden bg-slate-800 shadow-2xl">
-              <img src={`https://picsum.photos/seed/com${selectedComedian.id}/300/300`} className="w-full h-full object-cover" />
+            <div className="w-32 h-32 rounded-full border-4 border-[#0a0e1a] overflow-hidden bg-slate-800 shadow-2xl flex items-center justify-center">
+              {selectedComedian.image
+                ? <img src={selectedComedian.image} className="w-full h-full object-cover" alt={selectedComedian.name} />
+                : <Mic2 className="w-12 h-12 text-slate-600" />}
             </div>
             <div className="mt-6 text-center">
               <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-white">{selectedComedian.name}</h2>
               <div className="flex items-center justify-center gap-3 mt-2">
                 <p className="text-[#8892a4] text-sm font-bold flex items-center gap-1"><MapPin className="w-4 h-4 text-[#e53e3e]" /> {selectedComedian.location}</p>
                 <span className="px-3 py-0.5 bg-[#e53e3e]/10 text-[#e53e3e] text-[10px] font-black uppercase rounded italic border border-[#e53e3e]/20">{selectedComedian.level}</span>
-                {selectedComedian.isVerified && (
-                  <div className="flex items-center gap-1 text-[#f6a623] text-[10px] font-black uppercase">
-                    <ShieldCheck className="w-4 h-4" /> VERIFIED PRO
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
         <div className="flex flex-col items-center gap-8 mb-16">
           <div className="flex gap-4">
-             <button className="social-icon-btn ig p-3 w-12 h-12"><Instagram className="w-6 h-6" /></button>
-             <button className="social-icon-btn yt p-3 w-12 h-12"><Youtube className="w-6 h-6" /></button>
-             <button className="social-icon-btn x p-3 w-12 h-12">
-               <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-             </button>
-             <button className="social-icon-btn imdb p-3 w-12 h-12">
-               <svg viewBox="0 0 448 512" fill="currentColor" className="w-6 h-6"><path d="M400 32H48C21.5 32 0 53.5 0 80v352c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V80c0-26.5-21.5-48-48-48zM110.1 364.6c-4.4 12.9-10.4 20.3-17.7 22.1-7.2 1.8-13.8 1.1-19.8-2.1-6-3.2-11.2-8.5-15.5-16.1s-7.1-17.6-8.4-30.2c-1.3-12.6-2-27.4-2-44.5 0-17.1.7-31.9 2-44.5 1.3-12.6 4.1-22.6 8.4-30.2 4.3-7.6 9.5-12.9 15.5-16.1 6-3.2 12.6-4 19.8-2.1 7.2 1.8 13.3 9.2 17.7 22.1l11.4 34.1V246l-11.4 34.1c-1.1 3.2-2.3 6.5-3.5 9.8zM245.4 372.4c-6.8 6.5-14.7 9.8-23.7 9.8-9 0-16.9-3.3-23.7-9.8-6.8-6.5-10.2-15-10.2-25.6V165.2c0-10.6 3.4-19.1 10.2-25.6 6.8-6.5 14.7-9.8 23.7-9.8 9 0 16.9 3.3 23.7 9.8 6.8 6.5 10.2 15 10.2 25.6v181.6c0 10.6-3.4 19.1-10.2 25.6zm110.1-23.7c-4.3 7.6-9.5 12.9-15.5 16.1-6 3.2-12.6 4-19.8 2.1-7.2-1.8-13.3-9.2-17.7-22.1l-11.4-34.1v-68.2l11.4-34.1c4.4-12.9 10.4-20.3 17.7-22.1 7.2-1.8 13.8-1.1 19.8 2.1 6 3.2 11.2 8.5 15.5 16.1 4.3 7.6 7.1 17.6 8.4 30.2 1.3 12.6 2 27.4 2 44.5 0 17.1-.7 31.9-2 44.5-1.3 12.6-4.1 22.6-8.4 30.2z"/></svg>
-             </button>
+            {selectedComedian.instagram && (
+              <button
+                onClick={() => window.open(selectedComedian.instagram, '_blank')}
+                className="social-icon-btn ig p-3 w-12 h-12"
+              >
+                <Instagram className="w-6 h-6" />
+              </button>
+            )}
+            {selectedComedian.youtube && (
+              <button
+                onClick={() => window.open(selectedComedian.youtube, '_blank')}
+                className="social-icon-btn yt p-3 w-12 h-12"
+              >
+                <Youtube className="w-6 h-6" />
+              </button>
+            )}
+            {selectedComedian.xLink && (
+              <button
+                onClick={() => window.open(selectedComedian.xLink, '_blank')}
+                className="social-icon-btn x p-3 w-12 h-12"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              </button>
+            )}
           </div>
           <div className="flex gap-4 w-full max-w-md">
-            <button className="flex-1 py-4 border-2 border-white/10 rounded-2xl text-xs font-black uppercase italic tracking-widest hover:text-white/5 transition-all">FOLLOW ({selectedComedian.followers})</button>
+            <button className="flex-1 py-4 border-2 border-white/10 rounded-2xl text-xs font-black uppercase italic tracking-widest hover:text-white/5 transition-all">FOLLOW ({selectedComedian.followerCount.toLocaleString()})</button>
             <button className="flex-1 py-4 bg-brand-gradient text-white rounded-2xl text-xs font-black uppercase italic tracking-widest shadow-xl shadow-orange-900/20 active:scale-95 transition-all">BOOK ME</button>
           </div>
         </div>
@@ -380,13 +538,13 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
             <Search className="w-5 h-5 text-[#8892a4]" />
           </div>
         </div>
-        
+
         {/* Mobile Search Bar */}
         <div className="relative mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8892a4]" />
-          <input 
-            type="text" 
-            placeholder="Search events, comedians..." 
+          <input
+            type="text"
+            placeholder="Search events, comedians..."
             className="w-full bg-[#131b2e] border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold text-white placeholder:text-[#8892a4] focus:outline-none focus:border-amber-500/50 transition-all"
           />
         </div>
@@ -394,8 +552,8 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
         {/* Mobile Categories */}
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-4 px-4">
           {categories.map((cat, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               onClick={() => {
                 if (cat.label === 'Roster') navigateTo(PageType.HOME, 'ROSTER');
                 else if (cat.label === 'Shows') navigateTo(PageType.HOME, 'SHOWS');
@@ -443,9 +601,9 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
               <div className="relative hidden lg:flex flex-col">
                 <div className="glass-card p-4 rounded-[3rem] border-white/10 shadow-2xl transition-all duration-700 animate-swipe-left flex-grow flex">
                   <div className="flex-grow rounded-[2.5rem] overflow-hidden relative">
-                    <img 
-                      src="https://leagueofcomedy.com/wp-content/uploads/2025/08/Comedy-Show-Audience-4.png" 
-                      alt="Laughing Audience" 
+                    <img
+                      src="https://leagueofcomedy.com/wp-content/uploads/2025/08/Comedy-Show-Audience-4.png"
+                      alt="Laughing Audience"
                       className="w-full h-full object-cover object-center"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a]/80 via-transparent to-transparent"></div>
@@ -507,7 +665,7 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
               <div className="shrink-0"><h2 className="text-lg font-black italic uppercase tracking-tight text-white whitespace-nowrap">{currentTabLabel}</h2></div>
               {(activeTab === 'SHOWS' || activeTab === 'VENUES') && (
                 <div className="relative shrink-0 transition-all">
-                  <select 
+                  <select
                     value={selectedCountry}
                     onChange={(e) => setSelectedCountry(e.target.value)}
                     className="appearance-none bg-[#0a0e1a] pl-4 pr-10 py-2 rounded-full border border-white/10 text-[#f6a623] font-black italic uppercase text-xs cursor-pointer hover:border-[#f6a623]/30 transition-all focus:outline-none focus:ring-1 focus:ring-[#f6a623]/50"
@@ -539,7 +697,7 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab }
                     <h2 className="text-xl font-black italic uppercase tracking-tighter text-white">Upcoming Shows</h2>
                     <button className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">SEE ALL <ChevronRight className="w-3 h-3" /></button>
                   </div>
-                  
+
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
                       <div key={i} className="glass-card p-3 rounded-2xl border-white/5 flex items-center gap-4 group cursor-pointer">

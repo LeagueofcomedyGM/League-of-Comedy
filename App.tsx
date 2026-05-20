@@ -179,7 +179,7 @@ function App() {
   const renderContent = () => {
     switch (currentPage) {
       case PageType.HOME:
-        return <Home navigateTo={navigateTo} onPostSpot={() => setIsPostModalOpen(true)} initialTab={initialTab} />;
+        return <Home navigateTo={navigateTo} onPostSpot={() => setIsPostModalOpen(true)} initialTab={initialTab} authUser={authUser} />;
       case PageType.COMEDIANS:
         return <ForComedians navigateTo={navigateTo} />;
       case PageType.CORPORATE:
