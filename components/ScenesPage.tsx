@@ -41,17 +41,24 @@ interface ScenesPageProps {
 
 export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, authUser }) => {
   const [activeTab, setActiveTab] = useState('SHOWS');
-  const [isFollowed, setIsFollowed] = useState(false);
-  const [followerCount, setFollowerCount] = useState(0);
-  const [following, setFollowing] = useState(false);
-  const [hoverFollow, setHoverFollow] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isFollowed,          setIsFollowed]          = useState(false);
+  const [followerCount,       setFollowerCount]       = useState(0);
+  const [following,           setFollowing]           = useState(false);
+  const [hoverFollow,         setHoverFollow]         = useState(false);
+  const [followingComedians,  setFollowingComedians]  = useState<Set<string>>(new Set());
+  const [followingComedianId, setFollowingComedianId] = useState<string | null>(null);
+  const [hoverComedianId,     setHoverComedianId]     = useState<string | null>(null);
+  const [searchQuery,         setSearchQuery]         = useState('');
+  const [isDropdownOpen,      setIsDropdownOpen]      = useState(false);
 
   const sceneSlug = initialTab ?? 'los-angeles';
 
   useEffect(() => {
-    if (!authUser) { setIsFollowed(false); return; }
+    setIsFollowed(false);
+    setFollowerCount(0);
+    setFollowingComedians(new Set());
+
+    if (!authUser) return;
 
     async function loadFollowState() {
       try {
@@ -59,8 +66,10 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
           getDoc(doc(db, 'users', authUser!.uid)),
           getDoc(doc(db, 'scenes', sceneSlug)),
         ]);
-        const scenes: string[] = userSnap.data()?.following_scenes ?? [];
+        const data = userSnap.data() ?? {};
+        const scenes: string[] = data.following_scenes ?? [];
         setIsFollowed(scenes.includes(sceneSlug));
+        setFollowingComedians(new Set(data.following_comedians ?? []));
         if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
           setFollowerCount(sceneSnap.data().follower_count as number);
         }
@@ -166,6 +175,36 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     setFollowing(false);
   };
 
+  const handleComedianFollow = async (comedianId: string) => {
+    if (!authUser) {
+      alert("Please sign in to follow comedians.");
+      return;
+    }
+    const nowFollowing = !followingComedians.has(comedianId);
+
+    // Optimistic update
+    setFollowingComedians(prev => {
+      const next = new Set(prev);
+      nowFollowing ? next.add(comedianId) : next.delete(comedianId);
+      return next;
+    });
+    setFollowingComedianId(comedianId);
+
+    try {
+      await updateDoc(doc(db, 'users', authUser.uid), {
+        following_comedians: nowFollowing ? arrayUnion(comedianId) : arrayRemove(comedianId),
+      });
+    } catch {
+      // Roll back
+      setFollowingComedians(prev => {
+        const next = new Set(prev);
+        nowFollowing ? next.delete(comedianId) : next.add(comedianId);
+        return next;
+      });
+    }
+    setFollowingComedianId(null);
+  };
+
   const renderShows = (shows: typeof mockShows) => (
     <div className="animate-in fade-in duration-500">
       {/* Mobile View */}
@@ -228,39 +267,68 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const renderRoster = () => (
     <div className="animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-        {mockComedians.map(comedian => (
-          <div 
-            key={comedian.id} 
-            className="bg-[#f6a623] md:glass-card p-3 md:p-0 rounded-2xl md:rounded-xl border-none md:border-white/5 flex md:flex-row items-center md:items-stretch gap-4 md:gap-0 hover:brightness-110 md:hover:brightness-100 md:hover:bg-transparent transition-all cursor-pointer overflow-hidden group"
-          >
-            <div className="w-20 h-20 md:w-[40%] md:h-[150px] rounded-xl md:rounded-none overflow-hidden shrink-0">
-              <img src={`https://picsum.photos/seed/com${comedian.id}/400/400`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={comedian.name} />
-            </div>
-            <div className="flex-grow min-w-0 bg-[#f6a623] p-3 md:p-4 flex flex-col justify-center">
-              <h4 className="text-sm md:text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] mb-1 truncate">{comedian.name}</h4>
-              <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-[#e53e3e]" /> {comedian.location}
-              </p>
-              <div className="flex gap-2 mt-2 md:mt-auto">
-                 <button 
-                   className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
-                   style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
-                 >
-                   <Instagram className="w-3 h-3 md:w-4 md:h-4" />
-                 </button>
-                 <button className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                 </button>
-                 <button className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                   <Youtube className="w-3 h-3 md:w-4 md:h-4" />
-                 </button>
+        {mockComedians.map(comedian => {
+          const cid            = String(comedian.id);
+          const isFollowing    = followingComedians.has(cid);
+          const isLoading      = followingComedianId === cid;
+          const isHovering     = hoverComedianId === cid;
+
+          return (
+            <div
+              key={comedian.id}
+              className="bg-[#f6a623] md:glass-card p-3 md:p-0 rounded-2xl md:rounded-xl border-none md:border-white/5 flex md:flex-row items-center md:items-stretch gap-4 md:gap-0 hover:brightness-110 md:hover:brightness-100 md:hover:bg-transparent transition-all cursor-pointer overflow-hidden group"
+            >
+              <div className="w-20 h-20 md:w-[40%] md:h-[150px] rounded-xl md:rounded-none overflow-hidden shrink-0">
+                <img src={`https://picsum.photos/seed/com${comedian.id}/400/400`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={comedian.name} />
+              </div>
+              <div className="flex-grow min-w-0 bg-[#f6a623] p-3 md:p-4 flex flex-col justify-center">
+                <h4 className="text-sm md:text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] mb-1 truncate">{comedian.name}</h4>
+                <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#e53e3e]" /> {comedian.location}
+                </p>
+                <div className="flex items-center justify-between mt-2 md:mt-auto">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={e => e.stopPropagation()}
+                      className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
+                      style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
+                    >
+                      <Instagram className="w-3 h-3 md:w-4 md:h-4" />
+                    </button>
+                    <button onClick={e => e.stopPropagation()} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    </button>
+                    <button onClick={e => e.stopPropagation()} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                      <Youtube className="w-3 h-3 md:w-4 md:h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
+                    onMouseEnter={() => setHoverComedianId(cid)}
+                    onMouseLeave={() => setHoverComedianId(null)}
+                    disabled={isLoading}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isLoading
+                        ? 'bg-black/20 text-black/40'
+                        : isFollowing
+                          ? isHovering
+                            ? 'bg-red-600 text-white'
+                            : 'bg-emerald-600 text-white'
+                          : 'bg-[#0a0e1a] text-white hover:bg-black'
+                    }`}
+                  >
+                    {isLoading
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : isFollowing
+                        ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                        : '+ Follow'}
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="md:hidden">
-              <ArrowUpRight className="w-4 h-4 text-[#0a0e1a]" />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

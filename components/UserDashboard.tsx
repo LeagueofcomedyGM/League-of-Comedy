@@ -894,17 +894,23 @@ const slugToLocation = (s: string) => SCENE_META[s]?.location ?? '';
 // ── Following tab ──────────────────────────────────────────────────────────────
 
 const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
-  const [sceneSlugs,  setSceneSlugs]  = useState<string[]>([]);
-  const [sceneCounts, setSceneCounts] = useState<Record<string, number>>({});
-  const [loading,     setLoading]     = useState(true);
-  const [unfollowing, setUnfollowing] = useState<string | null>(null);
+  const [sceneSlugs,    setSceneSlugs]    = useState<string[]>([]);
+  const [sceneCounts,   setSceneCounts]   = useState<Record<string, number>>({});
+  const [comedianIds,   setComedianIds]   = useState<string[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [unfollowingScene,   setUnfollowingScene]   = useState<string | null>(null);
+  const [unfollowingComedian, setUnfollowingComedian] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
         const userSnap = await getDoc(doc(db, 'users', uid));
-        const slugs: string[] = userSnap.data()?.following_scenes ?? [];
+        const data     = userSnap.data() ?? {};
+
+        const slugs: string[]    = data.following_scenes   ?? [];
+        const cids:  string[]    = data.following_comedians ?? [];
         setSceneSlugs(slugs);
+        setComedianIds(cids);
 
         if (slugs.length > 0) {
           const counts: Record<string, number> = {};
@@ -920,8 +926,8 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
     load();
   }, [uid]);
 
-  const handleUnfollow = async (slug: string) => {
-    setUnfollowing(slug);
+  const handleUnfollowScene = async (slug: string) => {
+    setUnfollowingScene(slug);
     setSceneSlugs(prev => prev.filter(s => s !== slug));
     try {
       await Promise.all([
@@ -931,8 +937,29 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
     } catch {
       setSceneSlugs(prev => [...prev, slug]);
     }
-    setUnfollowing(null);
+    setUnfollowingScene(null);
   };
+
+  const handleUnfollowComedian = async (cid: string) => {
+    setUnfollowingComedian(cid);
+    setComedianIds(prev => prev.filter(c => c !== cid));
+    try {
+      await updateDoc(doc(db, 'users', uid), { following_comedians: arrayRemove(cid) });
+    } catch {
+      setComedianIds(prev => [...prev, cid]);
+    }
+    setUnfollowingComedian(null);
+  };
+
+  const unfollowBtn = (onClick: () => void, loading: boolean) => (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="flex items-center justify-center px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest border border-slate-700 text-slate-400 hover:border-red-600 hover:text-red-400 transition-all disabled:opacity-40 min-w-[80px]"
+    >
+      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Unfollow'}
+    </button>
+  );
 
   if (loading) return (
     <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
@@ -981,15 +1008,7 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
                       <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">followers</p>
                     </div>
                   )}
-                  <button
-                    onClick={() => handleUnfollow(slug)}
-                    disabled={unfollowing === slug}
-                    className="flex items-center justify-center px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest border border-slate-700 text-slate-400 hover:border-red-600 hover:text-red-400 transition-all disabled:opacity-40 min-w-[80px]"
-                  >
-                    {unfollowing === slug
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : 'Unfollow'}
-                  </button>
+                  {unfollowBtn(() => handleUnfollowScene(slug), unfollowingScene === slug)}
                 </div>
               </div>
             ))}
@@ -1002,12 +1021,37 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
         <div className="flex items-center gap-3 mb-6">
           <Mic2 className="w-4 h-4 text-amber-500" />
           <h3 className="text-sm font-black italic uppercase tracking-widest">Comedians</h3>
+          {comedianIds.length > 0 && (
+            <span className="ml-auto text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              {comedianIds.length} followed
+            </span>
+          )}
         </div>
-        <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
-          <Users className="w-8 h-8 opacity-30" />
-          <p className="text-[10px] font-bold uppercase tracking-widest">No comedians followed yet</p>
-          <p className="text-[11px] font-medium text-slate-700">Follow comedians from their roster cards.</p>
-        </div>
+
+        {comedianIds.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+            <Users className="w-8 h-8 opacity-30" />
+            <p className="text-[10px] font-bold uppercase tracking-widest">No comedians followed yet</p>
+            <p className="text-[11px] font-medium text-slate-700">Follow comedians from the Roster tab on any Scene.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {comedianIds.map(cid => (
+              <div key={cid} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                    <Mic2 className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black italic uppercase tracking-tight">Comedian #{cid}</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">Full profile coming soon</p>
+                  </div>
+                </div>
+                {unfollowBtn(() => handleUnfollowComedian(cid), unfollowingComedian === cid)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Organizers */}
