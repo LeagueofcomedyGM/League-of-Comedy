@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserRole } from '../types';
+import { PostSpotModal } from './PostSpotModal';
 import {
   Trophy,
   Ticket,
@@ -106,7 +107,7 @@ const STATS: Record<string, { label: string; val: string; icon: React.ReactNode 
 const ROLE_LABELS: Record<string, string> = {
   fan:       'Fan',
   comedian:  'Comedian',
-  organizer: 'Event Organizer',
+  organizer: 'Organizer',
   venue:     'Venue',
 };
 
@@ -876,7 +877,7 @@ const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
 
 // ── Action cards (Comedian + Organizer only) ───────────────────────────────────
 
-const ActionCards = () => (
+const ActionCards: React.FC<{ onPostGig: () => void }> = ({ onPostGig }) => (
   <div className="grid sm:grid-cols-2 gap-4">
     <div className="glass-card p-6 rounded-3xl border-slate-800 flex flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -896,15 +897,18 @@ const ActionCards = () => (
     <div className="glass-card p-6 rounded-3xl border-slate-800 flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-          <UserSearch className="w-5 h-5 text-amber-500" />
+          <Briefcase className="w-5 h-5 text-amber-500" />
         </div>
         <div>
-          <h4 className="text-sm font-black italic uppercase tracking-tight text-white">Book Talent</h4>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Find and invite comedians to your shows.</p>
+          <h4 className="text-sm font-black italic uppercase tracking-tight text-white">Post a Gig</h4>
+          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Post an open opportunity for comedians to apply.</p>
         </div>
       </div>
-      <button disabled className="w-full flex items-center justify-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest cursor-not-allowed opacity-60">
-        Coming Soon <ArrowRight className="w-3.5 h-3.5" />
+      <button
+        onClick={onPostGig}
+        className="w-full flex items-center justify-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 py-3 rounded-xl text-[10px] font-black uppercase italic tracking-widest hover:bg-amber-500/20 hover:text-amber-300 active:scale-95 transition-all"
+      >
+        Post a Gig <ArrowRight className="w-3.5 h-3.5" />
       </button>
     </div>
   </div>
@@ -919,7 +923,7 @@ const FanCapabilities = () => (
       {[
         { icon: <MapPin className="w-3.5 h-3.5 text-red-400" />,    text: 'Discover shows, comedians, venues & festivals' },
         { icon: <Ticket className="w-3.5 h-3.5 text-amber-400" />,  text: 'Buy tickets to live shows' },
-        { icon: <Heart className="w-3.5 h-3.5 text-pink-400" />,    text: 'Follow comedians and scenes' },
+        { icon: <Heart className="w-3.5 h-3.5 text-pink-400" />,    text: 'Follow comedians, organizers, and scenes' },
         { icon: <Star className="w-3.5 h-3.5 text-blue-400" />,     text: 'Like, comment, and share clips' },
         { icon: <Trophy className="w-3.5 h-3.5 text-purple-400" />, text: 'Earn LAF points and climb the leaderboard' },
         { icon: <QrCode className="w-3.5 h-3.5 text-emerald-400" />,text: 'Check in at shows via QR code' },
@@ -943,7 +947,7 @@ const ComedianCapabilities = () => (
         { icon: <Plus className="w-3.5 h-3.5 text-emerald-400" />,       text: 'Post your own gig opportunities' },
         { icon: <Users className="w-3.5 h-3.5 text-blue-400" />,         text: 'Review & accept gig submissions' },
         { icon: <MessageSquare className="w-3.5 h-3.5 text-pink-400" />, text: 'Send and respond to gig invites' },
-        { icon: <Heart className="w-3.5 h-3.5 text-purple-400" />,       text: 'Follow comedians and scenes' },
+        { icon: <Heart className="w-3.5 h-3.5 text-purple-400" />,       text: 'Follow comedians, organizers, and scenes' },
       ].map((item, i) => (
         <li key={i} className="flex items-center gap-3 text-[11px] text-slate-400 font-medium">
           <span className="shrink-0">{item.icon}</span>
@@ -963,7 +967,7 @@ const OrganizerCapabilities = () => (
         { icon: <Briefcase className="w-3.5 h-3.5 text-amber-400" />,    text: 'Post gig opportunities' },
         { icon: <Users className="w-3.5 h-3.5 text-blue-400" />,         text: 'Review & accept gig submissions' },
         { icon: <MessageSquare className="w-3.5 h-3.5 text-pink-400" />, text: 'Send gig invites to comedians' },
-        { icon: <Heart className="w-3.5 h-3.5 text-purple-400" />,       text: 'Follow comedians and scenes' },
+        { icon: <Heart className="w-3.5 h-3.5 text-purple-400" />,       text: 'Follow comedians, organizers, and scenes' },
         { icon: <MapPin className="w-3.5 h-3.5 text-emerald-400" />,     text: 'Choose public or private profile visibility' },
       ].map((item, i) => (
         <li key={i} className="flex items-center gap-3 text-[11px] text-slate-400 font-medium">
@@ -978,7 +982,8 @@ const OrganizerCapabilities = () => (
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, initialTab }) => {
-  const [activeTab, setActiveTab] = useState(initialTab ?? 'home');
+  const [activeTab,      setActiveTab]      = useState(initialTab ?? 'home');
+  const [isPostGigOpen,  setIsPostGigOpen]  = useState(false);
 
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
@@ -1005,7 +1010,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
         </div>
       </div>
 
-      {(role === 'comedian' || role === 'organizer') && <ActionCards />}
+      {(role === 'comedian' || role === 'organizer') && (
+        <ActionCards onPostGig={() => setIsPostGigOpen(true)} />
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s, i) => (
@@ -1157,6 +1164,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
           )}
         </div>
       </div>
+
+      {isPostGigOpen && (
+        <PostSpotModal initialMode="GIG" onClose={() => setIsPostGigOpen(false)} />
+      )}
     </div>
   );
 };
