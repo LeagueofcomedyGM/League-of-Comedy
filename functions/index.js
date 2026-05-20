@@ -184,20 +184,24 @@ async function createOrganizerProfile(uid) {
   });
 
   await db.collection('organizers').doc(uid).set({
-    uid:             uid,
-    display_name:    '',
-    contact_email:   '',
-    phone:           '',
-    city:            '',
-    state:           '',
-    bio:             '',
-    show_types:      [],
-    gig_type:        [],
-    referral_source: '',
-    terms_agreement: false,
-    organizer_roles: [],
-    created_at:      now,
-    updated_at:      now,
+    uid:                       uid,
+    display_name:              '',
+    contact_email:             '',
+    phone:                     '',
+    city:                      '',
+    state:                     '',
+    bio:                       '',
+    show_types:                [],
+    gig_type:                  [],
+    referral_source:           '',
+    terms_agreement:           false,
+    organizer_roles:           [],
+    is_public:                 true,
+    booking_styles:            [],
+    booking_vibes:             [],
+    booking_experience_levels: [],
+    created_at:                now,
+    updated_at:                now,
   });
 
   return { status: 'created', userType: 'organizer', docId: uid };

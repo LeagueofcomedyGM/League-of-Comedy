@@ -543,6 +543,128 @@ const FanEditProfile: React.FC<{ uid: string }> = ({ uid }) => {
   );
 };
 
+// ── Organizer settings (Settings tab) ─────────────────────────────────────────
+
+const OrganizerSettings: React.FC<{ uid: string }> = ({ uid }) => {
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
+  const [styles, setStyles]     = useState<string[]>([]);
+  const [vibes, setVibes]       = useState<string[]>([]);
+  const [levels, setLevels]     = useState<string[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const snap = await getDoc(doc(db, 'organizers', uid));
+        const data = snap.data() ?? {};
+        setIsPublic(data.is_public ?? true);
+        setStyles(data.booking_styles            ?? []);
+        setVibes(data.booking_vibes              ?? []);
+        setLevels(data.booking_experience_levels ?? []);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'organizers', uid), {
+        is_public:                 isPublic,
+        booking_styles:            styles,
+        booking_vibes:             vibes,
+        booking_experience_levels: levels,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  if (loading) return (
+    <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+
+      {/* Profile Visibility */}
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <h3 className="text-2xl font-black italic uppercase mb-1">Profile Visibility</h3>
+        <p className="text-xs text-slate-500 font-medium mb-8">
+          Control whether your organizer profile appears in search and scenes.
+        </p>
+        <div className="flex items-center justify-between p-5 rounded-2xl bg-slate-950 border border-slate-800">
+          <div>
+            <h4 className="text-sm font-black italic uppercase tracking-tight text-white">
+              {isPublic ? 'Public Profile' : 'Private Profile'}
+            </h4>
+            <p className="text-[11px] text-slate-500 font-medium mt-1">
+              {isPublic
+                ? 'Your profile is visible to comedians and fans.'
+                : 'Your profile is hidden from search and discovery.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsPublic(v => !v)}
+            className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${isPublic ? 'bg-red-600' : 'bg-slate-700'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isPublic ? 'translate-x-6' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Booking Preferences */}
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <h3 className="text-2xl font-black italic uppercase mb-1">Booking Preferences</h3>
+        <p className="text-xs text-slate-500 font-medium mb-8">
+          Private — tells us what talent you typically book so we can surface the right comedians.
+        </p>
+        <div className="space-y-6">
+          <MultiSelect
+            label="Comedy Styles You Book"
+            options={COMEDY_STYLES}
+            selected={styles}
+            onChange={setStyles}
+          />
+          <MultiSelect
+            label="Comedy Vibes You Book"
+            options={COMEDY_VIBES}
+            selected={vibes}
+            onChange={setVibes}
+          />
+          <MultiSelect
+            label="Experience Levels"
+            options={EXPERIENCE_LEVELS}
+            selected={levels}
+            onChange={setLevels}
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving || saved}
+        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase italic tracking-widest transition-all ${
+          saved
+            ? 'bg-emerald-600 text-white cursor-default'
+            : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed'
+        }`}
+      >
+        {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        {saved   && <Check   className="w-3.5 h-3.5" />}
+        {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Settings'}
+      </button>
+    </div>
+  );
+};
+
 // ── Fan discovery preferences (Settings tab) ──────────────────────────────────
 
 const FanPreferencesSettings: React.FC<{ uid: string }> = ({ uid }) => {
@@ -788,6 +910,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
       {role === 'fan' && authUser ? (
         <FanPreferencesSettings uid={authUser.uid} />
+      ) : role === 'organizer' && authUser ? (
+        <OrganizerSettings uid={authUser.uid} />
       ) : (
         <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
           <h3 className="text-2xl font-black italic uppercase mb-8">Newsletter Preferences</h3>
