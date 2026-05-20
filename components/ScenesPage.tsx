@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
   doc, getDoc, updateDoc, setDoc,
+  collection, query, where, getDocs,
   arrayUnion, arrayRemove, increment,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -33,6 +34,18 @@ import {
 } from 'lucide-react';
 import { PageType, UserRole } from '../types';
 
+interface RosterComedian {
+  docId:     string;
+  name:      string;
+  image:     string;
+  location:  string;
+  level:     string;
+  styles:    string[];
+  instagram: string;
+  xLink:     string;
+  youtube:   string;
+}
+
 interface ScenesPageProps {
   navigateTo: (page: PageType, tab?: string) => void;
   initialTab?: string | null;
@@ -50,8 +63,39 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const [hoverComedianId,     setHoverComedianId]     = useState<string | null>(null);
   const [searchQuery,         setSearchQuery]         = useState('');
   const [isDropdownOpen,      setIsDropdownOpen]      = useState(false);
+  const [rosterComedians,     setRosterComedians]     = useState<RosterComedian[]>([]);
+  const [loadingRoster,       setLoadingRoster]       = useState(true);
 
   const sceneSlug = initialTab ?? 'los-angeles';
+
+  useEffect(() => {
+    async function loadRoster() {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'comedians'), where('claimed', '==', true))
+        );
+        const comedians: RosterComedian[] = snap.docs
+          .map(d => {
+            const data = d.data();
+            return {
+              docId:     d.id,
+              name:      data.comedian_name      ?? '',
+              image:     data.comedian_image      ?? '',
+              location:  data.location            ?? '',
+              level:     data.experience_level    ?? '',
+              styles:    data.comedy_styles       ?? [],
+              instagram: data.instagram_link      ?? '',
+              xLink:     data.x_link              ?? '',
+              youtube:   data.youtube_link        ?? '',
+            };
+          })
+          .filter(c => c.name.trim() !== '');
+        setRosterComedians(comedians);
+      } catch { /* ignore */ }
+      setLoadingRoster(false);
+    }
+    loadRoster();
+  }, []);
 
   useEffect(() => {
     setIsFollowed(false);
@@ -264,74 +308,99 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     </div>
   );
 
-  const renderRoster = () => (
-    <div className="animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-        {mockComedians.map(comedian => {
-          const cid            = String(comedian.id);
-          const isFollowing    = followingComedians.has(cid);
-          const isLoading      = followingComedianId === cid;
-          const isHovering     = hoverComedianId === cid;
+  const renderRoster = () => {
+    if (loadingRoster) return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
+      </div>
+    );
 
-          return (
-            <div
-              key={comedian.id}
-              className="bg-[#f6a623] md:glass-card p-3 md:p-0 rounded-2xl md:rounded-xl border-none md:border-white/5 flex md:flex-row items-center md:items-stretch gap-4 md:gap-0 hover:brightness-110 md:hover:brightness-100 md:hover:bg-transparent transition-all cursor-pointer overflow-hidden group"
-            >
-              <div className="w-20 h-20 md:w-[40%] md:h-[150px] rounded-xl md:rounded-none overflow-hidden shrink-0">
-                <img src={`https://picsum.photos/seed/com${comedian.id}/400/400`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={comedian.name} />
-              </div>
-              <div className="flex-grow min-w-0 bg-[#f6a623] p-3 md:p-4 flex flex-col justify-center">
-                <h4 className="text-sm md:text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] mb-1 truncate">{comedian.name}</h4>
-                <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-[#e53e3e]" /> {comedian.location}
-                </p>
-                <div className="flex items-center justify-between mt-2 md:mt-auto">
-                  <div className="flex gap-2">
+    if (rosterComedians.length === 0) return (
+      <div className="flex flex-col items-center justify-center py-20 text-[#8892a4] gap-3">
+        <Mic2 className="w-10 h-10 opacity-20" />
+        <p className="text-[10px] font-bold uppercase tracking-widest">No comedians on this roster yet</p>
+        <p className="text-[11px] font-medium opacity-60">Comedians who set their location here will appear.</p>
+      </div>
+    );
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+          {rosterComedians.map(comedian => {
+            const cid        = comedian.docId;
+            const isFollowing = followingComedians.has(cid);
+            const isLoading  = followingComedianId === cid;
+            const isHovering = hoverComedianId === cid;
+
+            return (
+              <div
+                key={cid}
+                className="bg-[#f6a623] md:glass-card p-3 md:p-0 rounded-2xl md:rounded-xl border-none md:border-white/5 flex md:flex-row items-center md:items-stretch gap-4 md:gap-0 hover:brightness-110 md:hover:brightness-100 md:hover:bg-transparent transition-all cursor-pointer overflow-hidden group"
+              >
+                <div className="w-20 h-20 md:w-[40%] md:h-[150px] rounded-xl md:rounded-none overflow-hidden shrink-0 bg-slate-800 flex items-center justify-center">
+                  {comedian.image
+                    ? <img src={comedian.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={comedian.name} />
+                    : <Mic2 className="w-8 h-8 text-slate-600" />}
+                </div>
+                <div className="flex-grow min-w-0 bg-[#f6a623] p-3 md:p-4 flex flex-col justify-center">
+                  <h4 className="text-sm md:text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] mb-1 truncate">{comedian.name}</h4>
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-[#e53e3e]" /> {comedian.location || 'Location not set'}
+                  </p>
+                  {comedian.level && (
+                    <p className="text-[9px] font-black uppercase tracking-widest text-[#0a0e1a]/50 mt-0.5">{comedian.level}</p>
+                  )}
+                  <div className="flex items-center justify-between mt-2 md:mt-auto">
+                    <div className="flex gap-2">
+                      {comedian.instagram && (
+                        <button
+                          onClick={e => { e.stopPropagation(); window.open(comedian.instagram, '_blank'); }}
+                          className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
+                          style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
+                        >
+                          <Instagram className="w-3 h-3 md:w-4 md:h-4" />
+                        </button>
+                      )}
+                      {comedian.xLink && (
+                        <button onClick={e => { e.stopPropagation(); window.open(comedian.xLink, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        </button>
+                      )}
+                      {comedian.youtube && (
+                        <button onClick={e => { e.stopPropagation(); window.open(comedian.youtube, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                          <Youtube className="w-3 h-3 md:w-4 md:h-4" />
+                        </button>
+                      )}
+                    </div>
+
                     <button
-                      onClick={e => e.stopPropagation()}
-                      className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
-                      style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
+                      onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
+                      onMouseEnter={() => setHoverComedianId(cid)}
+                      onMouseLeave={() => setHoverComedianId(null)}
+                      disabled={isLoading}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isLoading
+                          ? 'bg-black/20 text-black/40'
+                          : isFollowing
+                            ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+                            : 'bg-[#0a0e1a] text-white hover:bg-black'
+                      }`}
                     >
-                      <Instagram className="w-3 h-3 md:w-4 md:h-4" />
-                    </button>
-                    <button onClick={e => e.stopPropagation()} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                    </button>
-                    <button onClick={e => e.stopPropagation()} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                      <Youtube className="w-3 h-3 md:w-4 md:h-4" />
+                      {isLoading
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : isFollowing
+                          ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                          : '+ Follow'}
                     </button>
                   </div>
-
-                  <button
-                    onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
-                    onMouseEnter={() => setHoverComedianId(cid)}
-                    onMouseLeave={() => setHoverComedianId(null)}
-                    disabled={isLoading}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isLoading
-                        ? 'bg-black/20 text-black/40'
-                        : isFollowing
-                          ? isHovering
-                            ? 'bg-red-600 text-white'
-                            : 'bg-emerald-600 text-white'
-                          : 'bg-[#0a0e1a] text-white hover:bg-black'
-                    }`}
-                  >
-                    {isLoading
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : isFollowing
-                        ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
-                        : '+ Follow'}
-                  </button>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderGigs = () => (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
