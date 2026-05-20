@@ -543,6 +543,143 @@ const FanEditProfile: React.FC<{ uid: string }> = ({ uid }) => {
   );
 };
 
+// ── Comedian settings (Settings tab) ──────────────────────────────────────────
+
+const AVAILABILITY_OPTIONS = [
+  { value: 'available',   label: 'Available for Bookings',   hint: 'Actively looking for gigs' },
+  { value: 'limited',     label: 'Limited Availability',     hint: 'Open to the right opportunities' },
+  { value: 'unavailable', label: 'Unavailable / On Hiatus',  hint: 'Not taking bookings right now' },
+];
+
+const TRAVEL_OPTIONS = [
+  { value: 'local',         label: 'Local Only',     hint: 'My city / metro area' },
+  { value: 'regional',      label: 'Regional',       hint: 'Within a few hours' },
+  { value: 'national',      label: 'National',       hint: 'Anywhere in the country' },
+  { value: 'international', label: 'International',  hint: 'Open to travel abroad' },
+];
+
+const RadioPills: React.FC<{
+  label: string;
+  hint?: string;
+  options: { value: string; label: string; hint: string }[];
+  selected: string;
+  onChange: (v: string) => void;
+}> = ({ label, hint, options, selected, onChange }) => (
+  <div>
+    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</label>
+    {hint && <p className="text-[10px] text-slate-600 mb-3 font-medium">{hint}</p>}
+    <div className="space-y-2 mt-2">
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl border text-left transition-all ${
+            selected === opt.value
+              ? 'bg-red-600/10 border-red-600/40 text-white'
+              : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-600 hover:text-white'
+          }`}
+        >
+          <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${
+            selected === opt.value ? 'border-red-500' : 'border-slate-600'
+          }`}>
+            {selected === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+          </div>
+          <div>
+            <div className="text-[11px] font-black uppercase italic tracking-widest">{opt.label}</div>
+            <div className="text-[10px] text-slate-500 font-medium mt-0.5">{opt.hint}</div>
+          </div>
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const ComedianSettings: React.FC<{ uid: string }> = ({ uid }) => {
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [saved, setSaved]             = useState(false);
+  const [availability, setAvailability] = useState('');
+  const [travel, setTravel]           = useState('');
+  const [docId, setDocId]             = useState(uid);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'comedians'), where('uid', '==', uid), limit(1))
+        );
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          setDocId(snap.docs[0].id);
+          setAvailability(data.availability_status ?? '');
+          setTravel(data.travel_willingness        ?? '');
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'comedians', docId), {
+        availability_status: availability,
+        travel_willingness:  travel,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  if (loading) return (
+    <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+        <h3 className="text-2xl font-black italic uppercase mb-1">Booking Settings</h3>
+        <p className="text-xs text-slate-500 font-medium mb-8">
+          Private — helps organisers know when and where you're available to book.
+        </p>
+        <div className="space-y-8 max-w-lg">
+          <RadioPills
+            label="Availability Status"
+            options={AVAILABILITY_OPTIONS}
+            selected={availability}
+            onChange={setAvailability}
+          />
+          <RadioPills
+            label="Travel Willingness"
+            options={TRAVEL_OPTIONS}
+            selected={travel}
+            onChange={setTravel}
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving || saved}
+        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase italic tracking-widest transition-all ${
+          saved
+            ? 'bg-emerald-600 text-white cursor-default'
+            : 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed'
+        }`}
+      >
+        {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        {saved   && <Check   className="w-3.5 h-3.5" />}
+        {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Settings'}
+      </button>
+    </div>
+  );
+};
+
 // ── Organizer settings (Settings tab) ─────────────────────────────────────────
 
 const OrganizerSettings: React.FC<{ uid: string }> = ({ uid }) => {
@@ -908,39 +1045,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
 
   const renderSettings = () => (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-      {role === 'fan' && authUser ? (
-        <FanPreferencesSettings uid={authUser.uid} />
-      ) : role === 'organizer' && authUser ? (
-        <OrganizerSettings uid={authUser.uid} />
-      ) : (
-        <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
-          <h3 className="text-2xl font-black italic uppercase mb-8">Newsletter Preferences</h3>
-          <div className="space-y-6">
-            <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
-              <div>
-                <h4 className="font-bold uppercase text-sm mb-1">City-Specific Editions</h4>
-                <p className="text-xs text-slate-500">Get local gigs and trending shows in your city.</p>
-              </div>
-              <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
-                <option>London</option><option>New York</option><option>Austin</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between gap-6 p-4 rounded-2xl hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800">
-              <div>
-                <h4 className="font-bold uppercase text-sm mb-1">Frequency</h4>
-                <p className="text-xs text-slate-500">Choose how often you want to hear from us.</p>
-              </div>
-              <select className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-xs font-bold outline-none focus:border-red-500">
-                <option>Weekly (Enthusiast)</option><option>Bi-Weekly (Regular)</option>
-                <option>Monthly (Occasional)</option><option>Event-Based Only</option>
-              </select>
-            </div>
-          </div>
-          <button className="mt-8 bg-red-600 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest italic hover:bg-red-700 transition-all">
-            Save Preferences
-          </button>
-        </div>
-      )}
+      {role === 'fan'      && authUser ? <FanPreferencesSettings uid={authUser.uid} /> :
+       role === 'comedian'  && authUser ? <ComedianSettings      uid={authUser.uid} /> :
+       role === 'organizer' && authUser ? <OrganizerSettings     uid={authUser.uid} /> :
+       null}
 
       <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
         <h3 className="text-2xl font-black italic uppercase mb-8">LAF Points & Rewards</h3>
