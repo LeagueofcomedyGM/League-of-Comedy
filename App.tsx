@@ -72,19 +72,19 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && !user.emailVerified) {
         setAuthUser(null);
+        setUserRole('fan');
+      } else if (user) {
+        setIsAuthModalOpen(false);
+        try {
+          const profile = await getUserProfile(user.uid);
+          if (profile.found && profile.userType) {
+            setUserRole(profile.userType as UserRole);
+          }
+        } catch { /* Firestore unavailable */ }
+        setAuthUser(user); // set after role is resolved so both update together
       } else {
-        setAuthUser(user);
-        if (user) {
-          setIsAuthModalOpen(false);
-          try {
-            const profile = await getUserProfile(user.uid);
-            if (profile.found && profile.userType) {
-              setUserRole(profile.userType as UserRole);
-            }
-          } catch { /* Firestore unavailable */ }
-        } else {
-          setUserRole('fan');
-        }
+        setUserRole('fan');
+        setAuthUser(null);
       }
     });
     return unsubscribe;

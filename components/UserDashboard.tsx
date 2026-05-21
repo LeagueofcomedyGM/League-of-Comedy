@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
   doc, getDoc, updateDoc, setDoc,
-  collection, query, where, limit, getDocs,
-  arrayRemove, increment,
+  collection, query, where, limit, getDocs, documentId,
+  arrayRemove, increment, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserRole } from '../types';
-import { PostSpotModal } from './PostSpotModal';
+import { PostSpotModal, ExistingGig } from './PostSpotModal';
 import {
   Trophy,
   Ticket,
@@ -31,6 +31,10 @@ import {
   Loader2,
   Check,
   Lock,
+  Building2,
+  ChevronDown,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -53,7 +57,7 @@ const NAV_ITEMS: Record<string, { id: string; label: string; icon: React.ReactNo
     { id: 'home',         label: 'Overview',    icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'edit-profile', label: 'Edit Profile', icon: <PencilLine className="w-4 h-4" /> },
     { id: 'events',       label: 'My Events',   icon: <Calendar className="w-4 h-4" /> },
-    { id: 'gigs',         label: 'Gig Board',   icon: <Briefcase className="w-4 h-4" /> },
+    { id: 'gigs',         label: 'My Gigs',   icon: <Briefcase className="w-4 h-4" /> },
     { id: 'tickets',      label: 'My Tickets',  icon: <Ticket className="w-4 h-4" /> },
     { id: 'following',    label: 'Following',   icon: <Heart className="w-4 h-4" /> },
     { id: 'messages',     label: 'Messages',    icon: <MessageSquare className="w-4 h-4" /> },
@@ -63,7 +67,7 @@ const NAV_ITEMS: Record<string, { id: string; label: string; icon: React.ReactNo
     { id: 'home',         label: 'Overview',    icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'edit-profile', label: 'Edit Profile', icon: <PencilLine className="w-4 h-4" /> },
     { id: 'events',       label: 'My Events',   icon: <Calendar className="w-4 h-4" /> },
-    { id: 'gigs',         label: 'Gig Board',   icon: <Briefcase className="w-4 h-4" /> },
+    { id: 'gigs',         label: 'My Gigs',   icon: <Briefcase className="w-4 h-4" /> },
     { id: 'tickets',      label: 'My Tickets',  icon: <Ticket className="w-4 h-4" /> },
     { id: 'following',    label: 'Following',   icon: <Heart className="w-4 h-4" /> },
     { id: 'messages',     label: 'Messages',    icon: <MessageSquare className="w-4 h-4" /> },
@@ -893,13 +897,750 @@ const slugToLocation = (s: string) => SCENE_META[s]?.location ?? '';
 
 // ── Following tab ──────────────────────────────────────────────────────────────
 
+// ── My Gigs Tab ───────────────────────────────────────────────────────────────
+
+function getEmbedUrl(url: string): string | null {
+  try {
+    const ytShort = url.match(/youtu\.be\/([^?&]+)/);
+    if (ytShort) return `https://www.youtube.com/embed/${ytShort[1]}`;
+    const ytFull = url.match(/[?&]v=([^&]+)/);
+    if (ytFull) return `https://www.youtube.com/embed/${ytFull[1]}`;
+    const vimeo = url.match(/vimeo\.com\/(\d+)/);
+    if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+    return null;
+  } catch { return null; }
+}
+
+interface MyApplication {
+  appId:          string;
+  gigId:          string;
+  message:        string;
+  appliedAt:      Timestamp | null;
+  status:         string;
+  gigTitle:       string;
+  gigCategory:    string;
+  gigPayRange:    string;
+  gigCity:        string;
+  gigState:       string;
+  gigVenueName:   string;
+  gigDate:        string;
+  gigTime:        string;
+  gigDeadline:    string;
+  gigPublicBrief: string;
+  gigSetLengths:  string[];
+  gigSpots:       number;
+}
+
+interface PostedGigItem {
+  id:               string;
+  title:            string;
+  category:         string;
+  pay_range:        string;
+  city:             string;
+  state:            string;
+  status:           string;
+  posted_at:        Timestamp | null;
+  spots:            number;
+  spots_filled:     number;
+  venue_name:       string;
+  date:             string;
+  time:             string;
+  deadline:         string;
+  public_brief:     string;
+  set_lengths:      string[];
+  experience_level: string;
+  styles:           string[];
+  vibes:            string[];
+}
+
+interface GigApplicant {
+  appId:        string;
+  comedianUid:  string;
+  comedianName: string;
+  message:      string;
+  appliedAt:    Timestamp | null;
+  status:       string;
+}
+
+const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
+  const [subTab,            setSubTab]            = useState<'applied' | 'posted'>(role === 'organizer' ? 'posted' : 'applied');
+  const [loading,           setLoading]           = useState(true);
+  const [applications,      setApplications]      = useState<MyApplication[]>([]);
+  const [postedGigs,        setPostedGigs]        = useState<PostedGigItem[]>([]);
+  const [expandedGigId,     setExpandedGigId]     = useState<string | null>(null);
+  const [expandedAppId,     setExpandedAppId]     = useState<string | null>(null);
+  const [applicantsMap,     setApplicantsMap]     = useState<Record<string, GigApplicant[]>>({});
+  const [loadingApplicants, setLoadingApplicants] = useState<string | null>(null);
+  const [viewingApplicant,  setViewingApplicant]  = useState<{ applicant: GigApplicant; gigTitle: string } | null>(null);
+  const [applicantProfile,  setApplicantProfile]  = useState<Record<string, any> | null>(null);
+  const [loadingProfile,    setLoadingProfile]    = useState(false);
+  const [updatingStatus,    setUpdatingStatus]    = useState<'accepted' | 'declined' | 'pending' | null>(null);
+  const [editingGig,        setEditingGig]        = useState<ExistingGig | null>(null);
+  const [gigVersion,        setGigVersion]        = useState(0);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [appsSnap, gigsSnap] = await Promise.all([
+          role !== 'organizer'
+            ? getDocs(query(collection(db, 'applications'), where('comedian_uid', '==', uid)))
+            : Promise.resolve(null),
+          getDocs(query(collection(db, 'gigs'), where('posted_by_uid', '==', uid))),
+        ]);
+
+        const gigs: PostedGigItem[] = gigsSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            id:               d.id,
+            title:            data.title            ?? '',
+            category:         data.category         ?? '',
+            pay_range:        data.pay_range         ?? '',
+            city:             data.city              ?? '',
+            state:            data.state             ?? '',
+            status:           data.status            ?? 'published',
+            posted_at:        data.posted_at         ?? null,
+            spots:            data.spots             ?? 1,
+            spots_filled:     data.spots_filled      ?? 0,
+            venue_name:       data.venue_name        ?? '',
+            date:             data.date              ?? '',
+            time:             data.time              ?? '',
+            deadline:         data.deadline          ?? '',
+            public_brief:     data.public_brief      ?? '',
+            set_lengths:      data.set_lengths       ?? [],
+            experience_level: data.experience_level  ?? '',
+            styles:           data.styles            ?? [],
+            vibes:            data.vibes             ?? [],
+          };
+        });
+        gigs.sort((a, b) => (b.posted_at?.toMillis() ?? 0) - (a.posted_at?.toMillis() ?? 0));
+        setPostedGigs(gigs);
+
+        if (appsSnap && appsSnap.docs.length > 0) {
+          const rawApps = appsSnap.docs.map(d => ({ appId: d.id, ...(d.data() as any) }));
+          const gigIds  = [...new Set<string>(rawApps.map(a => a.gig_id))];
+          const gigDocs = await Promise.all(gigIds.map(id => getDoc(doc(db, 'gigs', id))));
+          const gigMap: Record<string, any> = {};
+          gigDocs.forEach(d => { if (d.exists()) gigMap[d.id] = d.data(); });
+
+          setApplications(rawApps.map(a => {
+            const g = gigMap[a.gig_id] ?? {};
+            return {
+              appId:          a.appId,
+              gigId:          a.gig_id,
+              message:        a.message    ?? '',
+              appliedAt:      a.applied_at ?? null,
+              status:         a.status     ?? 'pending',
+              gigTitle:       g.title       ?? 'Unknown Gig',
+              gigCategory:    g.category    ?? '',
+              gigPayRange:    g.pay_range   ?? '',
+              gigCity:        g.city        ?? '',
+              gigState:       g.state       ?? '',
+              gigVenueName:   g.venue_name  ?? '',
+              gigDate:        g.date        ?? '',
+              gigTime:        g.time        ?? '',
+              gigDeadline:    g.deadline    ?? '',
+              gigPublicBrief: g.public_brief ?? '',
+              gigSetLengths:  g.set_lengths  ?? [],
+              gigSpots:       g.spots        ?? 1,
+            };
+          }));
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    load();
+  }, [uid, role, gigVersion]);
+
+  const toggleApplicants = async (gigId: string) => {
+    if (expandedGigId === gigId) { setExpandedGigId(null); return; }
+    if (applicantsMap[gigId])    { setExpandedGigId(gigId); return; }
+    setLoadingApplicants(gigId);
+    try {
+      const appsSnap  = await getDocs(query(collection(db, 'applications'), where('gig_id', '==', gigId)));
+      const rawApps   = appsSnap.docs.map(d => ({ appId: d.id, ...(d.data() as any) }));
+      const comDocs   = await Promise.all(rawApps.map(a => getDoc(doc(db, 'comedians', a.comedian_uid))));
+      const applicants: GigApplicant[] = rawApps.map((a, i) => ({
+        appId:        a.appId,
+        comedianUid:  a.comedian_uid,
+        comedianName: comDocs[i].data()?.comedian_name ?? 'Comedian',
+        message:      a.message    ?? '',
+        appliedAt:    a.applied_at ?? null,
+        status:       a.status     ?? 'pending',
+      }));
+      setApplicantsMap(prev => ({ ...prev, [gigId]: applicants }));
+      setExpandedGigId(gigId);
+    } catch { /* ignore */ }
+    setLoadingApplicants(null);
+  };
+
+  const openApplicantProfile = async (applicant: GigApplicant, gigTitle: string) => {
+    setViewingApplicant({ applicant, gigTitle });
+    setApplicantProfile(null);
+    setLoadingProfile(true);
+    try {
+      const snap = await getDoc(doc(db, 'comedians', applicant.comedianUid));
+      setApplicantProfile(snap.exists() ? snap.data() ?? null : null);
+    } catch { /* ignore */ }
+    setLoadingProfile(false);
+  };
+
+  const handleStatusUpdate = async (newStatus: 'accepted' | 'declined' | 'pending') => {
+    if (!viewingApplicant) return;
+    setUpdatingStatus(newStatus);
+    try {
+      await updateDoc(doc(db, 'applications', viewingApplicant.applicant.appId), { status: newStatus });
+      // Update applicantsMap so the list row reflects the change
+      setApplicantsMap(prev => {
+        const gigId = Object.keys(prev).find(gid =>
+          prev[gid].some(a => a.appId === viewingApplicant.applicant.appId)
+        );
+        if (!gigId) return prev;
+        return {
+          ...prev,
+          [gigId]: prev[gigId].map(a =>
+            a.appId === viewingApplicant.applicant.appId ? { ...a, status: newStatus } : a
+          ),
+        };
+      });
+      // Update the modal's live applicant
+      setViewingApplicant(prev =>
+        prev ? { ...prev, applicant: { ...prev.applicant, status: newStatus } } : null
+      );
+    } catch { /* ignore */ }
+    setUpdatingStatus(null);
+  };
+
+  const statusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      pending:   'bg-amber-500/10 border-amber-500/20 text-amber-400',
+      published: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      accepted:  'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+      draft:     'bg-slate-500/10 border-slate-500/20 text-slate-400',
+      declined:  'bg-red-500/10 border-red-500/20 text-red-400',
+    };
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${styles[status] ?? styles.pending}`}>
+        {status}
+      </span>
+    );
+  };
+
+  if (loading) return (
+    <div className="glass-card p-12 rounded-[2.5rem] border-slate-800 flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-red-500 opacity-60" />
+    </div>
+  );
+
+  return (
+    <>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+
+      {/* Sub-tab toggle — comedians only */}
+      {role !== 'organizer' && (
+        <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 w-fit">
+          {(['applied', 'posted'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setSubTab(t)}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all ${
+                subTab === t ? 'bg-[#1e293b] text-white shadow' : 'text-slate-500 hover:text-white'
+              }`}
+            >
+              {t === 'applied' ? 'Applied' : 'Posted'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Applied */}
+      {subTab === 'applied' && role !== 'organizer' && (
+        <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+          <div className="flex items-center gap-3 mb-6">
+            <Briefcase className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-black italic uppercase tracking-widest">Applied</h3>
+            {applications.length > 0 && (
+              <span className="ml-auto text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                {applications.length} application{applications.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {applications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+              <Briefcase className="w-8 h-8 opacity-30" />
+              <p className="text-[10px] font-bold uppercase tracking-widest">No applications yet</p>
+              <p className="text-[11px] font-medium text-slate-700">Browse the Gig Board and hit Apply Now.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {applications.map(app => (
+                <div
+                  key={app.appId}
+                  className={`bg-slate-950 rounded-2xl border overflow-hidden ${
+                    app.status === 'accepted' ? 'border-emerald-500/30' : 'border-slate-800'
+                  }`}
+                >
+                  <div
+                    className={`p-4 flex items-start justify-between gap-4 ${app.status === 'accepted' ? 'cursor-pointer hover:bg-white/[0.02] transition-colors' : ''}`}
+                    onClick={() => app.status === 'accepted' && setExpandedAppId(expandedAppId === app.appId ? null : app.appId)}
+                  >
+                    <div className="min-w-0 flex-grow">
+                      <h4 className="text-sm font-black italic uppercase tracking-tight text-white truncate">{app.gigTitle}</h4>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {app.gigCategory && <span className="text-[9px] font-black uppercase tracking-widest text-[#8892a4]">{app.gigCategory}</span>}
+                        {app.gigPayRange && <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">{app.gigPayRange}</span>}
+                        {[app.gigCity, app.gigState].filter(Boolean).join(', ') && (
+                          <span className="text-[9px] font-bold text-[#8892a4] flex items-center gap-1">
+                            <MapPin className="w-2.5 h-2.5" />{[app.gigCity, app.gigState].filter(Boolean).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                      {app.message && (
+                        <p className="text-[11px] text-slate-500 mt-2 leading-relaxed line-clamp-2 italic">"{app.message}"</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      {statusBadge(app.status)}
+                      {app.status === 'accepted' && (
+                        <ChevronDown className={`w-4 h-4 text-emerald-500 transition-transform ${expandedAppId === app.appId ? 'rotate-180' : ''}`} />
+                      )}
+                    </div>
+                  </div>
+
+                  {app.status === 'accepted' && expandedAppId === app.appId && (
+                    <div className="px-4 pb-4">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 space-y-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> You're booked — here are the details
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          {app.gigVenueName && (
+                            <div className="flex items-start gap-2">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Venue</p>
+                                <p className="text-[11px] font-bold text-white">{app.gigVenueName}</p>
+                              </div>
+                            </div>
+                          )}
+                          {[app.gigCity, app.gigState].filter(Boolean).join(', ') && (
+                            <div className="flex items-start gap-2">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Location</p>
+                                <p className="text-[11px] font-bold text-white">{[app.gigCity, app.gigState].filter(Boolean).join(', ')}</p>
+                              </div>
+                            </div>
+                          )}
+                          {app.gigDate && (
+                            <div className="flex items-start gap-2">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Date</p>
+                                <p className="text-[11px] font-bold text-white">
+                                  {new Date(app.gigDate + 'T00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                  {app.gigTime ? ` · ${new Date('1970-01-01T' + app.gigTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {app.gigSetLengths.length > 0 && (
+                            <div className="flex items-start gap-2">
+                              <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Set Length</p>
+                                <p className="text-[11px] font-bold text-white">{app.gigSetLengths.join(', ')}</p>
+                              </div>
+                            </div>
+                          )}
+                          {app.gigPayRange && (
+                            <div className="flex items-start gap-2">
+                              <Zap className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Pay</p>
+                                <p className="text-[11px] font-bold text-emerald-400">{app.gigPayRange}</p>
+                              </div>
+                            </div>
+                          )}
+                          {app.gigSpots > 1 && (
+                            <div className="flex items-start gap-2">
+                              <Users className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Open Spots</p>
+                                <p className="text-[11px] font-bold text-white">{app.gigSpots}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {app.gigPublicBrief && (
+                          <div className="pt-2 border-t border-emerald-500/10">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Notes from organizer</p>
+                            <p className="text-[11px] text-slate-300 leading-relaxed">{app.gigPublicBrief}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Posted */}
+      {(subTab === 'posted' || role === 'organizer') && (
+        <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
+          <div className="flex items-center gap-3 mb-6">
+            <Briefcase className="w-4 h-4 text-red-500" />
+            <h3 className="text-sm font-black italic uppercase tracking-widest">Posted</h3>
+            {postedGigs.length > 0 && (
+              <span className="ml-auto text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                {postedGigs.length} gig{postedGigs.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {postedGigs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+              <Briefcase className="w-8 h-8 opacity-30" />
+              <p className="text-[10px] font-bold uppercase tracking-widest">No gigs posted yet</p>
+              <p className="text-[11px] font-medium text-slate-700">Use Post a Gig to create your first listing.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {postedGigs.map(gig => {
+                const isExpanded    = expandedGigId === gig.id;
+                const isLoadingThis = loadingApplicants === gig.id;
+                const applicants    = applicantsMap[gig.id];
+
+                return (
+                  <div key={gig.id} className="rounded-2xl border border-slate-800 overflow-hidden">
+                    <button
+                      onClick={() => toggleApplicants(gig.id)}
+                      className="w-full p-4 bg-slate-950 hover:bg-slate-900 transition-colors flex items-center gap-4 text-left"
+                    >
+                      <div className="flex-grow min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h4 className="text-sm font-black italic uppercase tracking-tight text-white truncate">{gig.title}</h4>
+                          {statusBadge(gig.status)}
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          {gig.category && <span className="text-[9px] font-black uppercase tracking-widest text-[#8892a4]">{gig.category}</span>}
+                          {gig.pay_range && <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">{gig.pay_range}</span>}
+                          {[gig.city, gig.state].filter(Boolean).join(', ') && (
+                            <span className="text-[9px] font-bold text-[#8892a4] flex items-center gap-1">
+                              <MapPin className="w-2.5 h-2.5" />{[gig.city, gig.state].filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Applicants</p>
+                          <p className="text-base font-black text-white italic">
+                            {isLoadingThis
+                              ? <Loader2 className="w-4 h-4 animate-spin inline" />
+                              : applicants != null ? applicants.length : '—'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setEditingGig({
+                              id:               gig.id,
+                              title:            gig.title,
+                              category:         gig.category,
+                              venue_name:       gig.venue_name,
+                              city:             gig.city,
+                              state:            gig.state,
+                              date:             gig.date,
+                              time:             gig.time,
+                              spots:            gig.spots,
+                              deadline:         gig.deadline,
+                              public_brief:     gig.public_brief,
+                              pay_range:        gig.pay_range,
+                              set_lengths:      gig.set_lengths,
+                              experience_level: gig.experience_level,
+                              styles:           gig.styles,
+                              vibes:            gig.vibes,
+                              status:           gig.status,
+                              applicantCount:   applicants?.length ?? 0,
+                            });
+                          }}
+                          className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/20 transition-all"
+                          title="Edit gig"
+                        >
+                          <PencilLine className="w-3.5 h-3.5" />
+                        </button>
+                        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-slate-800 bg-[#0a0e1a]">
+                        {!applicants || applicants.length === 0 ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-slate-600">
+                            <Users className="w-4 h-4 opacity-40" />
+                            <p className="text-[10px] font-bold uppercase tracking-widest">No applications yet</p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-800/50">
+                            {applicants.map(applicant => (
+                              <div key={applicant.appId} className="p-4 flex items-start gap-4">
+                                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                                  <Mic2 className="w-4 h-4 text-amber-500" />
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <h5 className="text-sm font-black italic uppercase tracking-tight text-white">{applicant.comedianName}</h5>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      {statusBadge(applicant.status)}
+                                      <button
+                                        onClick={() => openApplicantProfile(applicant, gig.title)}
+                                        className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-all"
+                                      >
+                                        View Profile
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {applicant.message && (
+                                    <p className="text-[11px] text-slate-500 leading-relaxed italic">"{applicant.message}"</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+
+    {/* Applicant Profile Modal */}
+
+    {viewingApplicant && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
+        <div className="relative w-full max-w-xl bg-[#0f1628] rounded-[2rem] sm:rounded-[2.5rem] border border-white/10 shadow-2xl my-4 sm:my-8 overflow-hidden">
+
+          {/* Close */}
+          <button
+            onClick={() => setViewingApplicant(null)}
+            className="absolute top-4 right-4 z-20 p-2 bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 rounded-full transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          {loadingProfile ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
+            </div>
+          ) : (() => {
+            const clipLink = applicantProfile?.comedy_clip_link ?? '';
+            const embedUrl = clipLink ? getEmbedUrl(clipLink) : null;
+            return (
+              <>
+                {/* Hero — embedded video or gradient fallback */}
+                <div className="relative">
+                  {embedUrl ? (
+                    <div className="aspect-video w-full bg-black">
+                      <iframe
+                        src={embedUrl}
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title="Comedy Clip"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-28 sm:h-36 bg-gradient-to-br from-[#131b2e] to-[#0a0e1a]" />
+                  )}
+
+                  {/* Avatar — overlaps bottom of hero */}
+                  <div className="absolute bottom-0 left-6 sm:left-8 translate-y-1/2">
+                    {applicantProfile?.comedian_image ? (
+                      <img
+                        src={applicantProfile.comedian_image}
+                        alt={viewingApplicant.applicant.comedianName}
+                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-4 border-[#0f1628] shadow-xl"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-amber-500/10 border-4 border-[#0f1628] flex items-center justify-center shadow-xl">
+                        <Mic2 className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 opacity-60" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="pt-12 sm:pt-14 px-6 sm:px-8 pb-8 space-y-5">
+
+                  {/* Name + meta */}
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-tighter text-white">
+                      {viewingApplicant.applicant.comedianName}
+                    </h2>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {applicantProfile?.location && (
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-red-500" /> {applicantProfile.location}
+                        </span>
+                      )}
+                      {applicantProfile?.experience_level && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-black uppercase tracking-widest text-amber-400">
+                          {applicantProfile.experience_level}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Applying for */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Applying for: <span className="text-white">{viewingApplicant.gigTitle}</span>
+                  </div>
+
+                  {/* Pitch */}
+                  {viewingApplicant.applicant.message && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Their Pitch</p>
+                      <p className="text-sm text-slate-300 leading-relaxed italic bg-slate-900 rounded-xl p-4 border border-slate-800">
+                        "{viewingApplicant.applicant.message}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Bio */}
+                  {applicantProfile?.bio && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">About</p>
+                      <p className="text-sm text-slate-400 leading-relaxed">{applicantProfile.bio}</p>
+                    </div>
+                  )}
+
+                  {/* Styles + set lengths */}
+                  {((applicantProfile?.comedy_styles ?? []).length > 0 || (applicantProfile?.set_lengths ?? []).length > 0) && (
+                    <div className="flex flex-wrap gap-2">
+                      {(applicantProfile?.comedy_styles ?? []).map((s: string) => (
+                        <span key={s} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-slate-400">{s}</span>
+                      ))}
+                      {(applicantProfile?.set_lengths ?? []).map((s: string) => (
+                        <span key={s} className="px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-400">{s}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Fallback clip link if not embeddable */}
+                  {clipLink && !embedUrl && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Featured Clip</p>
+                      <a
+                        href={clipLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-red-500/40 hover:bg-slate-800 transition-all group"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-600/20 flex items-center justify-center shrink-0">
+                          <ArrowRight className="w-4 h-4 text-red-500 group-hover:translate-x-0.5 transition-transform" />
+                        </div>
+                        <p className="text-xs font-black uppercase italic tracking-tight text-white truncate">Watch Comedy Clip</p>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Social links */}
+                  {(applicantProfile?.instagram_link || applicantProfile?.youtube_link || applicantProfile?.x_link) && (
+                    <div className="flex gap-2 flex-wrap">
+                      {applicantProfile?.instagram_link && (
+                        <a href={applicantProfile.instagram_link} target="_blank" rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-all">
+                          Instagram
+                        </a>
+                      )}
+                      {applicantProfile?.youtube_link && (
+                        <a href={applicantProfile.youtube_link} target="_blank" rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all">
+                          YouTube
+                        </a>
+                      )}
+                      {applicantProfile?.x_link && (
+                        <a href={applicantProfile.x_link} target="_blank" rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all">
+                          X / Twitter
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Accept / Decline */}
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-3">
+                    <div>{statusBadge(viewingApplicant.applicant.status)}</div>
+                    {viewingApplicant.applicant.status === 'pending' ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleStatusUpdate('declined')}
+                          disabled={!!updatingStatus}
+                          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest border border-slate-700 text-slate-400 hover:border-red-600 hover:text-red-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {updatingStatus === 'declined' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Decline'}
+                        </button>
+                        <button
+                          onClick={() => handleStatusUpdate('accepted')}
+                          disabled={!!updatingStatus}
+                          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest bg-emerald-600 text-white hover:bg-emerald-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/30"
+                        >
+                          {updatingStatus === 'accepted' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Accept'}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleStatusUpdate('pending')}
+                        disabled={!!updatingStatus}
+                        className="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest border border-slate-700 text-slate-400 hover:border-white/20 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {updatingStatus ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Reset to Pending'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    )}
+
+    {editingGig && (
+      <PostSpotModal
+        existingGig={editingGig}
+        onClose={() => setEditingGig(null)}
+        onSuccess={() => {
+          setEditingGig(null);
+          setApplicantsMap({});
+          setGigVersion(v => v + 1);
+        }}
+      />
+    )}
+    </>
+  );
+};
+
 const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
-  const [sceneSlugs,    setSceneSlugs]    = useState<string[]>([]);
-  const [sceneCounts,   setSceneCounts]   = useState<Record<string, number>>({});
-  const [comedianIds,   setComedianIds]   = useState<string[]>([]);
-  const [loading,       setLoading]       = useState(true);
-  const [unfollowingScene,   setUnfollowingScene]   = useState<string | null>(null);
-  const [unfollowingComedian, setUnfollowingComedian] = useState<string | null>(null);
+  const [sceneSlugs,      setSceneSlugs]      = useState<string[]>([]);
+  const [sceneCounts,     setSceneCounts]     = useState<Record<string, number>>({});
+  const [comedianIds,     setComedianIds]     = useState<string[]>([]);
+  const [comedianNames,   setComedianNames]   = useState<Record<string, string>>({});
+  const [organizerIds,    setOrganizerIds]    = useState<string[]>([]);
+  const [organizerNames,  setOrganizerNames]  = useState<Record<string, string>>({});
+  const [loading,         setLoading]         = useState(true);
+  const [unfollowingScene,     setUnfollowingScene]     = useState<string | null>(null);
+  const [unfollowingComedian,  setUnfollowingComedian]  = useState<string | null>(null);
+  const [unfollowingOrganizer, setUnfollowingOrganizer] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -907,19 +1648,39 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
         const userSnap = await getDoc(doc(db, 'users', uid));
         const data     = userSnap.data() ?? {};
 
-        const slugs: string[]    = data.following_scenes   ?? [];
-        const cids:  string[]    = data.following_comedians ?? [];
+        const slugs: string[] = data.following_scenes    ?? [];
+        const cids:  string[] = data.following_comedians ?? [];
+        const oids:  string[] = data.following_organizers ?? [];
         setSceneSlugs(slugs);
         setComedianIds(cids);
+        setOrganizerIds(oids);
 
-        if (slugs.length > 0) {
-          const counts: Record<string, number> = {};
-          await Promise.all(slugs.map(async slug => {
-            const snap = await getDoc(doc(db, 'scenes', slug));
-            if (snap.exists()) counts[slug] = snap.data().follower_count ?? 0;
-          }));
-          setSceneCounts(counts);
-        }
+        await Promise.all([
+          slugs.length > 0 && (async () => {
+            const counts: Record<string, number> = {};
+            await Promise.all(slugs.map(async slug => {
+              const snap = await getDoc(doc(db, 'scenes', slug));
+              if (snap.exists()) counts[slug] = snap.data().follower_count ?? 0;
+            }));
+            setSceneCounts(counts);
+          })(),
+          cids.length > 0 && (async () => {
+            const names: Record<string, string> = {};
+            await Promise.all(cids.map(async cid => {
+              const snap = await getDoc(doc(db, 'comedians', cid));
+              names[cid] = snap.data()?.comedian_name ?? 'Comedian';
+            }));
+            setComedianNames(names);
+          })(),
+          oids.length > 0 && (async () => {
+            const names: Record<string, string> = {};
+            await Promise.all(oids.map(async oid => {
+              const snap = await getDoc(doc(db, 'organizers', oid));
+              names[oid] = snap.data()?.display_name ?? 'Organizer';
+            }));
+            setOrganizerNames(names);
+          })(),
+        ]);
       } catch { /* ignore */ }
       setLoading(false);
     }
@@ -949,6 +1710,17 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
       setComedianIds(prev => [...prev, cid]);
     }
     setUnfollowingComedian(null);
+  };
+
+  const handleUnfollowOrganizer = async (oid: string) => {
+    setUnfollowingOrganizer(oid);
+    setOrganizerIds(prev => prev.filter(o => o !== oid));
+    try {
+      await updateDoc(doc(db, 'users', uid), { following_organizers: arrayRemove(oid) });
+    } catch {
+      setOrganizerIds(prev => [...prev, oid]);
+    }
+    setUnfollowingOrganizer(null);
   };
 
   const unfollowBtn = (onClick: () => void, loading: boolean) => (
@@ -1043,8 +1815,9 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
                     <Mic2 className="w-4 h-4 text-amber-500" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-black italic uppercase tracking-tight">Comedian #{cid}</h4>
-                    <p className="text-[10px] text-slate-500 font-medium">Full profile coming soon</p>
+                    <h4 className="text-sm font-black italic uppercase tracking-tight">
+                      {comedianNames[cid] ?? 'Comedian'}
+                    </h4>
                   </div>
                 </div>
                 {unfollowBtn(() => handleUnfollowComedian(cid), unfollowingComedian === cid)}
@@ -1057,14 +1830,40 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
       {/* Organizers */}
       <div className="glass-card p-8 rounded-[2.5rem] border-slate-800">
         <div className="flex items-center gap-3 mb-6">
-          <Briefcase className="w-4 h-4 text-blue-400" />
+          <Building2 className="w-4 h-4 text-blue-400" />
           <h3 className="text-sm font-black italic uppercase tracking-widest">Organizers</h3>
+          {organizerIds.length > 0 && (
+            <span className="ml-auto text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              {organizerIds.length} followed
+            </span>
+          )}
         </div>
-        <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
-          <Users className="w-8 h-8 opacity-30" />
-          <p className="text-[10px] font-bold uppercase tracking-widest">No organizers followed yet</p>
-          <p className="text-[11px] font-medium text-slate-700">Organizer profiles coming soon.</p>
-        </div>
+
+        {organizerIds.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-3">
+            <Building2 className="w-8 h-8 opacity-30" />
+            <p className="text-[10px] font-bold uppercase tracking-widest">No organizers followed yet</p>
+            <p className="text-[11px] font-medium text-slate-700">Follow organizers from the Organizers tab on any Scene.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {organizerIds.map(oid => (
+              <div key={oid} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black italic uppercase tracking-tight">
+                      {organizerNames[oid] ?? 'Organizer'}
+                    </h4>
+                  </div>
+                </div>
+                {unfollowBtn(() => handleUnfollowOrganizer(oid), unfollowingOrganizer === oid)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>
@@ -1180,6 +1979,96 @@ const OrganizerCapabilities = () => (
 export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, initialTab }) => {
   const [activeTab,      setActiveTab]      = useState(initialTab ?? 'home');
   const [isPostGigOpen,  setIsPostGigOpen]  = useState(false);
+  const [liveStats,        setLiveStats]        = useState<Record<string, number>>({});
+  const [followersOpen,    setFollowersOpen]    = useState(false);
+  const [followersList,    setFollowersList]    = useState<{ uid: string; name: string; role: string }[]>([]);
+  const [loadingFollowers, setLoadingFollowers] = useState(false);
+  const [followersTab,     setFollowersTab]     = useState<'all' | 'fan' | 'comedian' | 'organizer'>('all');
+
+  useEffect(() => {
+    if (!authUser) return;
+    async function loadStats() {
+      try {
+        if (role === 'organizer') {
+          const [orgSnap, gigsSnap] = await Promise.all([
+            getDoc(doc(db, 'organizers', authUser!.uid)),
+            getDocs(query(collection(db, 'gigs'), where('posted_by_uid', '==', authUser!.uid))),
+          ]);
+          const followers: string[] = orgSnap.data()?.followers ?? [];
+          const gigIds = gigsSnap.docs.map(d => d.id);
+          let talentBooked = 0;
+          if (gigIds.length > 0) {
+            const appsSnap = await getDocs(
+              query(collection(db, 'applications'), where('gig_id', 'in', gigIds.slice(0, 30)))
+            );
+            talentBooked = appsSnap.docs.filter(d => d.data().status === 'accepted').length;
+          }
+          setLiveStats({ 'Followers': followers.length, 'Talent Booked': talentBooked });
+        } else if (role === 'comedian') {
+          let followers: string[] = [];
+          const directSnap = await getDoc(doc(db, 'comedians', authUser!.uid));
+          if (directSnap.exists()) {
+            followers = directSnap.data()?.followers ?? [];
+          } else {
+            // Legacy claimed profile — doc ID differs from UID
+            const q = await getDocs(query(collection(db, 'comedians'), where('uid', '==', authUser!.uid)));
+            if (!q.empty) followers = q.docs[0].data().followers ?? [];
+          }
+          setLiveStats({ 'Followers': followers.length });
+        } else if (role === 'fan') {
+          const snap = await getDoc(doc(db, 'users', authUser!.uid));
+          const data = snap.data() ?? {};
+          const followingCount =
+            (data.following_comedians?.length ?? 0) +
+            (data.following_scenes?.length    ?? 0) +
+            (data.following_organizers?.length ?? 0);
+          setLiveStats({ 'Following': followingCount });
+        }
+      } catch { /* ignore */ }
+    }
+    loadStats();
+  }, [authUser, role]);
+
+  const openFollowersModal = async () => {
+    if (!authUser || (role !== 'comedian' && role !== 'organizer')) return;
+    setFollowersOpen(true);
+    if (followersList.length > 0) return; // already loaded
+    setLoadingFollowers(true);
+    try {
+      let uids: string[] = [];
+      if (role === 'comedian') {
+        const direct = await getDoc(doc(db, 'comedians', authUser.uid));
+        if (direct.exists()) {
+          uids = direct.data()?.followers ?? [];
+        } else {
+          const q = await getDocs(query(collection(db, 'comedians'), where('uid', '==', authUser.uid)));
+          if (!q.empty) uids = q.docs[0].data().followers ?? [];
+        }
+      } else {
+        const snap = await getDoc(doc(db, 'organizers', authUser.uid));
+        uids = snap.data()?.followers ?? [];
+      }
+
+      // Batch fetch all comedian and organizer docs in 2 parallel queries
+      const batched = uids.slice(0, 30);
+      const [comedianDocs, orgDocs] = await Promise.all([
+        getDocs(query(collection(db, 'comedians'), where(documentId(), 'in', batched))),
+        getDocs(query(collection(db, 'organizers'), where(documentId(), 'in', batched))),
+      ]);
+      const comedianMap: Record<string, string> = {};
+      comedianDocs.docs.forEach(d => { if (d.data()?.comedian_name) comedianMap[d.id] = d.data().comedian_name; });
+      const orgMap: Record<string, string> = {};
+      orgDocs.docs.forEach(d => { if (d.data()?.display_name) orgMap[d.id] = d.data().display_name; });
+
+      const resolved = uids.map(uid => {
+        if (comedianMap[uid]) return { uid, name: comedianMap[uid], role: 'comedian' };
+        if (orgMap[uid])      return { uid, name: orgMap[uid],      role: 'organizer' };
+        return { uid, name: 'Fan', role: 'fan' };
+      });
+      setFollowersList(resolved);
+    } catch { /* ignore */ }
+    setLoadingFollowers(false);
+  };
 
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
@@ -1211,17 +2100,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s, i) => (
-          <div key={i} className="glass-card p-5 rounded-3xl border-slate-800/50 hover:bg-slate-900/50 transition-all group">
-            <div className="flex justify-between items-start mb-3">
-              <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 group-hover:scale-110 transition-transform">
-                {s.icon}
+        {stats.map((s, i) => {
+          const isFollowersCard = s.label === 'Followers' && (role === 'comedian' || role === 'organizer');
+          return (
+            <div
+              key={i}
+              onClick={isFollowersCard ? openFollowersModal : undefined}
+              className={`glass-card p-5 rounded-3xl border-slate-800/50 transition-all group ${isFollowersCard ? 'cursor-pointer hover:border-amber-500/30' : 'hover:bg-slate-900/50'}`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 group-hover:scale-110 transition-transform">
+                  {s.icon}
+                </div>
+                {isFollowersCard && <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 group-hover:text-amber-500 transition-colors">View →</span>}
               </div>
+              <div className="text-3xl font-black italic">
+                {liveStats[s.label] !== undefined ? liveStats[s.label].toLocaleString() : s.val}
+              </div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{s.label}</div>
             </div>
-            <div className="text-3xl font-black italic">{s.val}</div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{s.label}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -1353,7 +2252,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
           {activeTab === 'settings'     && renderSettings()}
           {activeTab === 'edit-profile' && renderEditProfile()}
           {activeTab === 'following'    && authUser && <FollowingTab uid={authUser.uid} />}
-          {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && activeTab !== 'following' && (
+          {activeTab === 'gigs'         && authUser && <GigsTab uid={authUser.uid} role={role} />}
+          {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && activeTab !== 'following' && activeTab !== 'gigs' && (
             <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 text-center text-slate-500 flex flex-col items-center justify-center italic font-bold opacity-50 uppercase tracking-[0.2em] text-xs">
               <Zap className="w-12 h-12 mb-4 animate-pulse" />
               Feature Incoming
@@ -1365,6 +2265,101 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
       {isPostGigOpen && (
         <PostSpotModal initialMode="GIG" onClose={() => setIsPostGigOpen(false)} />
       )}
+
+      {followersOpen && (() => {
+        const counts = {
+          all:       followersList.length,
+          fan:       followersList.filter(f => f.role === 'fan').length,
+          comedian:  followersList.filter(f => f.role === 'comedian').length,
+          organizer: followersList.filter(f => f.role === 'organizer').length,
+        };
+        const visible = followersTab === 'all' ? followersList : followersList.filter(f => f.role === followersTab);
+        const tabs: { id: typeof followersTab; label: string }[] = [
+          { id: 'all',       label: 'All' },
+          { id: 'comedian',  label: 'Comedians' },
+          { id: 'organizer', label: 'Organizers' },
+          { id: 'fan',       label: 'Fans' },
+        ];
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setFollowersOpen(false)}>
+            <div className="glass-card w-full max-w-md rounded-[2rem] border-slate-700 overflow-hidden" onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-6 pb-4">
+                <div>
+                  <h3 className="text-sm font-black italic uppercase tracking-widest">Followers</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                    {counts.all} total
+                  </p>
+                </div>
+                <button onClick={() => setFollowersOpen(false)} className="p-2 rounded-xl hover:bg-slate-800 transition-colors">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              {!loadingFollowers && counts.all > 0 && (
+                <div className="flex gap-1 px-4 pb-3 overflow-x-auto no-scrollbar">
+                  {tabs.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setFollowersTab(t.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+                        followersTab === t.id
+                          ? t.id === 'comedian'  ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                          : t.id === 'organizer' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                          : t.id === 'fan'       ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                                                 : 'bg-white/10 border-white/20 text-white'
+                          : 'border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      {t.label}
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                        followersTab === t.id ? 'bg-white/10' : 'bg-slate-800'
+                      }`}>
+                        {counts[t.id]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* List */}
+              <div className="px-4 pb-4 max-h-[55vh] overflow-y-auto space-y-2">
+                {loadingFollowers ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
+                  </div>
+                ) : counts.all === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-600 gap-3">
+                    <Users className="w-8 h-8 opacity-30" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest">No followers yet</p>
+                  </div>
+                ) : visible.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-slate-600 gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest">No {followersTab}s following you yet</p>
+                  </div>
+                ) : (
+                  visible.map(f => (
+                    <div key={f.uid} className="flex items-center gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center font-black text-sm text-slate-400 shrink-0">
+                        {f.name[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <p className="flex-grow text-sm font-bold text-white truncate">{f.name}</p>
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border shrink-0 ${
+                        f.role === 'comedian'  ? 'border-red-500/20 bg-red-500/10 text-red-400' :
+                        f.role === 'organizer' ? 'border-amber-500/20 bg-amber-500/10 text-amber-400' :
+                                                 'border-slate-700 bg-slate-800 text-slate-400'
+                      }`}>{f.role}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

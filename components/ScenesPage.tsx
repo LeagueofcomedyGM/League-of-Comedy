@@ -6,31 +6,32 @@ import {
   arrayUnion, arrayRemove, increment,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { 
+import {
   Check,
   Loader2,
-  Zap, 
-  Star, 
-  Shield, 
-  LayoutDashboard, 
-  Calendar, 
-  Video, 
-  Bell, 
-  MessageSquare, 
-  Briefcase, 
-  MapPin, 
-  ChevronRight, 
+  Zap,
+  Star,
+  Shield,
+  LayoutDashboard,
+  Calendar,
+  Video,
+  Bell,
+  MessageSquare,
+  Briefcase,
+  MapPin,
+  ChevronRight,
   ChevronDown,
   Search,
   X,
-  Users, 
+  Users,
   Mic2,
   Trophy,
   Heart,
   Play,
   ArrowUpRight,
   Instagram,
-  Youtube
+  Youtube,
+  Building2,
 } from 'lucide-react';
 import { PageType, UserRole } from '../types';
 
@@ -44,6 +45,16 @@ interface RosterComedian {
   instagram: string;
   xLink:     string;
   youtube:   string;
+  likes:     number;
+}
+
+interface RosterOrganizer {
+  docId:   string;
+  name:    string;
+  city:    string;
+  state:   string;
+  bio:     string;
+  roles:   string[];
 }
 
 interface ScenesPageProps {
@@ -65,6 +76,14 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const [isDropdownOpen,      setIsDropdownOpen]      = useState(false);
   const [rosterComedians,     setRosterComedians]     = useState<RosterComedian[]>([]);
   const [loadingRoster,       setLoadingRoster]       = useState(true);
+  const [rosterOrganizers,      setRosterOrganizers]      = useState<RosterOrganizer[]>([]);
+  const [loadingOrganizers,     setLoadingOrganizers]     = useState(true);
+  const [followingOrganizers,   setFollowingOrganizers]   = useState<Set<string>>(new Set());
+  const [followingOrganizerId,  setFollowingOrganizerId]  = useState<string | null>(null);
+  const [hoverOrganizerId,      setHoverOrganizerId]      = useState<string | null>(null);
+  const [likedComedians,        setLikedComedians]        = useState<Set<string>>(new Set());
+  const [likingComedianId,      setLikingComedianId]      = useState<string | null>(null);
+  const [comedianLikes,         setComedianLikes]         = useState<Record<string, number>>({});
 
   const sceneSlug = initialTab ?? 'los-angeles';
 
@@ -95,6 +114,7 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
               instagram: data.instagram_link  ?? '',
               xLink:     data.x_link          ?? '',
               youtube:   data.youtube_link    ?? '',
+              likes:     data.likes           ?? 0,
             };
           })
           .filter(c =>
@@ -102,6 +122,9 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
             c.location.toLowerCase().includes(cityName.toLowerCase())
           );
         setRosterComedians(comedians);
+        const likesMap: Record<string, number> = {};
+        comedians.forEach(c => { likesMap[c.docId] = c.likes; });
+        setComedianLikes(likesMap);
       } catch { /* ignore */ }
       setLoadingRoster(false);
     }
@@ -109,9 +132,46 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   }, [sceneSlug]);
 
   useEffect(() => {
+    setRosterOrganizers([]);
+    setLoadingOrganizers(true);
+
+    const cityName = sceneSlug
+      .split('-')
+      .map(w => w[0].toUpperCase() + w.slice(1))
+      .join(' ');
+
+    async function loadOrganizers() {
+      try {
+        const snap = await getDocs(collection(db, 'organizers'));
+        const organizers: RosterOrganizer[] = snap.docs
+          .map(d => {
+            const data = d.data();
+            return {
+              docId: d.id,
+              name:  data.display_name ?? '',
+              city:  data.city         ?? '',
+              state: data.state        ?? '',
+              bio:   data.bio          ?? '',
+              roles: data.organizer_roles ?? [],
+            };
+          })
+          .filter(o =>
+            o.name.trim() !== '' &&
+            o.city.toLowerCase().includes(cityName.toLowerCase())
+          );
+        setRosterOrganizers(organizers);
+      } catch { /* ignore */ }
+      setLoadingOrganizers(false);
+    }
+    loadOrganizers();
+  }, [sceneSlug]);
+
+  useEffect(() => {
     setIsFollowed(false);
     setFollowerCount(0);
     setFollowingComedians(new Set());
+    setFollowingOrganizers(new Set());
+    setLikedComedians(new Set());
 
     if (!authUser) return;
 
@@ -125,6 +185,8 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
         const scenes: string[] = data.following_scenes ?? [];
         setIsFollowed(scenes.includes(sceneSlug));
         setFollowingComedians(new Set(data.following_comedians ?? []));
+        setFollowingOrganizers(new Set(data.following_organizers ?? []));
+        setLikedComedians(new Set(data.liked_comedians ?? []));
         if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
           setFollowerCount(sceneSnap.data().follower_count as number);
         }
@@ -164,11 +226,12 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   };
 
   const tabs = [
-    { id: 'SHOWS', label: 'Shows' },
-    { id: 'MICS', label: 'Open Mics' },
-    { id: 'ROSTER', label: 'Roster' },
-    { id: 'GIGS', label: 'Gigs' },
-    { id: 'CLIPS', label: 'Clips' }
+    { id: 'SHOWS',      label: 'Shows' },
+    { id: 'MICS',       label: 'Open Mics' },
+    { id: 'ROSTER',     label: 'Roster' },
+    { id: 'ORGANIZERS', label: 'Organizers' },
+    { id: 'GIGS',       label: 'Gigs' },
+    { id: 'CLIPS',      label: 'Clips' },
   ];
 
   const mockShows = [
@@ -246,9 +309,15 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     setFollowingComedianId(comedianId);
 
     try {
-      await updateDoc(doc(db, 'users', authUser.uid), {
-        following_comedians: nowFollowing ? arrayUnion(comedianId) : arrayRemove(comedianId),
-      });
+      await Promise.all([
+        updateDoc(doc(db, 'users', authUser.uid), {
+          following_comedians: nowFollowing ? arrayUnion(comedianId) : arrayRemove(comedianId),
+        }),
+        updateDoc(doc(db, 'comedians', comedianId), {
+          follower_count: increment(nowFollowing ? 1 : -1),
+          followers: nowFollowing ? arrayUnion(authUser.uid) : arrayRemove(authUser.uid),
+        }),
+      ]);
     } catch {
       // Roll back
       setFollowingComedians(prev => {
@@ -258,6 +327,81 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
       });
     }
     setFollowingComedianId(null);
+  };
+
+  const handleOrganizerFollow = async (organizerId: string) => {
+    if (!authUser) {
+      alert("Please sign in to follow organizers.");
+      return;
+    }
+    const nowFollowing = !followingOrganizers.has(organizerId);
+
+    setFollowingOrganizers(prev => {
+      const next = new Set(prev);
+      nowFollowing ? next.add(organizerId) : next.delete(organizerId);
+      return next;
+    });
+    setFollowingOrganizerId(organizerId);
+
+    try {
+      await Promise.all([
+        updateDoc(doc(db, 'users', authUser.uid), {
+          following_organizers: nowFollowing ? arrayUnion(organizerId) : arrayRemove(organizerId),
+        }),
+        updateDoc(doc(db, 'organizers', organizerId), {
+          follower_count: increment(nowFollowing ? 1 : -1),
+          followers: nowFollowing ? arrayUnion(authUser.uid) : arrayRemove(authUser.uid),
+        }),
+      ]);
+    } catch {
+      setFollowingOrganizers(prev => {
+        const next = new Set(prev);
+        nowFollowing ? next.delete(organizerId) : next.add(organizerId);
+        return next;
+      });
+    }
+    setFollowingOrganizerId(null);
+  };
+
+  const handleComedianLike = async (comedianId: string) => {
+    if (!authUser) {
+      alert("Please sign in to like comedians.");
+      return;
+    }
+    const nowLiking = !likedComedians.has(comedianId);
+
+    setLikedComedians(prev => {
+      const next = new Set(prev);
+      nowLiking ? next.add(comedianId) : next.delete(comedianId);
+      return next;
+    });
+    setComedianLikes(prev => ({
+      ...prev,
+      [comedianId]: (prev[comedianId] ?? 0) + (nowLiking ? 1 : -1),
+    }));
+    setLikingComedianId(comedianId);
+
+    try {
+      await Promise.all([
+        updateDoc(doc(db, 'users', authUser.uid), {
+          liked_comedians: nowLiking ? arrayUnion(comedianId) : arrayRemove(comedianId),
+        }),
+        updateDoc(doc(db, 'comedians', comedianId), {
+          likes: increment(nowLiking ? 1 : -1),
+        }),
+      ]);
+    } catch {
+      setLikedComedians(prev => {
+        const next = new Set(prev);
+        nowLiking ? next.delete(comedianId) : next.add(comedianId);
+        return next;
+      });
+      setComedianLikes(prev => ({
+        ...prev,
+        [comedianId]: (prev[comedianId] ?? 0) + (nowLiking ? -1 : 1),
+      }));
+    }
+    setLikingComedianId(null);
   };
 
   const renderShows = (shows: typeof mockShows) => (
@@ -363,7 +507,7 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                     <p className="text-[9px] font-black uppercase tracking-widest text-[#0a0e1a]/50 mt-0.5">{comedian.level}</p>
                   )}
                   <div className="flex items-center justify-between mt-2 md:mt-auto">
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                       {comedian.instagram && (
                         <button
                           onClick={e => { e.stopPropagation(); window.open(comedian.instagram, '_blank'); }}
@@ -383,6 +527,16 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                           <Youtube className="w-3 h-3 md:w-4 md:h-4" />
                         </button>
                       )}
+                      <button
+                        onClick={e => { e.stopPropagation(); handleComedianLike(cid); }}
+                        disabled={likingComedianId === cid}
+                        className={`flex items-center gap-0.5 text-[10px] font-black transition-all ml-1 disabled:opacity-40 ${
+                          likedComedians.has(cid) ? 'text-red-500' : 'text-[#0a0e1a]/30 hover:text-red-400'
+                        }`}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${likedComedians.has(cid) ? 'fill-red-500' : ''}`} />
+                        <span>{comedianLikes[cid] ?? 0}</span>
+                      </button>
                     </div>
 
                     {isOwnCard ? (
@@ -411,6 +565,99 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                       </button>
                     )}
                   </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderOrganizers = () => {
+    if (loadingOrganizers) return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
+      </div>
+    );
+
+    if (rosterOrganizers.length === 0) return (
+      <div className="flex flex-col items-center justify-center py-20 text-[#8892a4] gap-3">
+        <Building2 className="w-10 h-10 opacity-20" />
+        <p className="text-[10px] font-bold uppercase tracking-widest">No organizers in this scene yet</p>
+        <p className="text-[11px] font-medium opacity-60">Organizers who set their city here will appear.</p>
+      </div>
+    );
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          {rosterOrganizers.map(org => {
+            const oid        = org.docId;
+            const isOwnCard  = authUser?.uid === oid;
+            const isFollowing = followingOrganizers.has(oid);
+            const isLoading  = followingOrganizerId === oid;
+            const isHovering = hoverOrganizerId === oid;
+
+            return (
+              <div
+                key={oid}
+                className="glass-card p-5 md:p-6 rounded-2xl border border-white/5 hover:border-white/15 transition-all flex items-start gap-4 group cursor-pointer"
+              >
+                <div className="w-12 h-12 rounded-xl bg-brand-gradient flex items-center justify-center shrink-0 shadow-lg">
+                  <Building2 className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-grow min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4 className="text-base font-black italic uppercase tracking-tight text-white truncate group-hover:text-amber-400 transition-colors">
+                        {org.name}
+                      </h4>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#8892a4] flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 text-red-500 shrink-0" />
+                        {org.city}{org.state ? `, ${org.state}` : ''}
+                      </p>
+                    </div>
+
+                    {isOwnCard ? (
+                      <span className="shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 text-[#8892a4]">
+                        You
+                      </span>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleOrganizerFollow(oid); }}
+                        onMouseEnter={() => setHoverOrganizerId(oid)}
+                        onMouseLeave={() => setHoverOrganizerId(null)}
+                        disabled={isLoading}
+                        className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isLoading
+                            ? 'bg-white/10 text-white/40'
+                            : isFollowing
+                              ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+                              : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {isLoading
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : isFollowing
+                            ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                            : '+ Follow'}
+                      </button>
+                    )}
+                  </div>
+
+                  {org.roles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {org.roles.map(role => (
+                        <span key={role} className="px-2 py-0.5 rounded-full bg-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {org.bio && (
+                    <p className="text-[11px] text-[#8892a4] mt-2 leading-relaxed line-clamp-2">{org.bio}</p>
+                  )}
                 </div>
               </div>
             );
@@ -452,23 +699,38 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   );
 
   const renderClips = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {mockClips.map(clip => (
-        <div key={clip.id} className="glass-card rounded-3xl lg:rounded-[2rem] overflow-hidden border border-white/5 group h-full flex flex-col">
-          <div className="aspect-video relative overflow-hidden bg-slate-900">
-            <img src={clip.thumbnail} className="w-full h-full object-cover grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" alt={clip.title} />
-            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-100 group-hover:opacity-0 transition-opacity">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
-                <Play className="w-5 h-5 text-white fill-current ml-0.5" />
+    <div className="animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-8">
+        {mockClips.map(clip => (
+          <div key={clip.id} className="glass-card rounded-3xl lg:rounded-[2.5rem] overflow-hidden border border-white/5 group h-full flex flex-col">
+            <div className="aspect-video relative overflow-hidden bg-slate-900">
+              <img src={clip.thumbnail} className="w-full h-full object-cover grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={clip.title} />
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-100 group-hover:opacity-0 transition-opacity">
+                <div className="w-12 h-12 lg:w-16 lg:h-16 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center">
+                  <Play className="w-4 h-4 lg:w-6 lg:h-6 text-white fill-current ml-1" />
+                </div>
+              </div>
+              <div className="absolute bottom-2 right-2 lg:bottom-4 lg:right-4 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-black text-white italic">03:45</div>
+            </div>
+            <div className="p-5 lg:p-8 flex-grow">
+              <div className="flex items-center gap-2 mb-3 lg:mb-4">
+                <div className="w-5 h-5 lg:w-6 lg:h-6 rounded-full overflow-hidden bg-slate-800">
+                  <img src={`https://i.pravatar.cc/100?u=${clip.id}`} className="w-full h-full object-cover" alt={clip.comedian} />
+                </div>
+                <p className="text-[9px] lg:text-[10px] font-black text-amber-500 uppercase tracking-widest">{clip.comedian}</p>
+              </div>
+              <h4 className="text-lg lg:text-xl font-black italic uppercase text-white leading-tight tracking-tight group-hover:text-red-500 transition-colors mb-4 line-clamp-2">{clip.title}</h4>
+              <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1 text-[9px] lg:text-[10px] font-bold text-[#8892a4] uppercase tracking-widest"><Heart className="w-3 h-3" /> 1.2k</span>
+                  <span className="flex items-center gap-1 text-[9px] lg:text-[10px] font-bold text-[#8892a4] uppercase tracking-widest"><MessageSquare className="w-3 h-3" /> 45</span>
+                </div>
+                <button className="text-[#8892a4] hover:text-white transition-colors"><Zap className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
-          <div className="p-5 lg:p-6 flex-grow">
-            <p className="text-[9px] lg:text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mb-2">{clip.comedian}</p>
-            <h4 className="text-lg font-black italic uppercase text-white leading-tight tracking-tight group-hover:text-red-500 transition-colors line-clamp-2">{clip.title}</h4>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 
@@ -729,11 +991,12 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
 
       {/* Content Area */}
       <div className="max-w-7xl mx-auto px-4 py-12 pb-32">
-        {activeTab === 'SHOWS' && renderShows(mockShows)}
-        {activeTab === 'MICS' && renderShows(mockMics)}
-        {activeTab === 'ROSTER' && renderRoster()}
-        {activeTab === 'GIGS' && renderGigs()}
-        {activeTab === 'CLIPS' && renderClips()}
+        {activeTab === 'SHOWS'      && renderShows(mockShows)}
+        {activeTab === 'MICS'       && renderShows(mockMics)}
+        {activeTab === 'ROSTER'     && renderRoster()}
+        {activeTab === 'ORGANIZERS' && renderOrganizers()}
+        {activeTab === 'GIGS'       && renderGigs()}
+        {activeTab === 'CLIPS'      && renderClips()}
       </div>
     </div>
   );

@@ -1,26 +1,137 @@
 
-import React, { useState } from 'react';
-import { Search, Filter, Briefcase, Calendar, MapPin, DollarSign, Clock, Users, ArrowUpRight, Zap, CheckCircle2, Building, Mic2, Trophy, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Filter, Briefcase, Calendar, MapPin, DollarSign, Clock, Users, ArrowUpRight, Zap, CheckCircle2, Building, Mic2, Trophy, Star, Loader2, X } from 'lucide-react';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { auth } from '../firebase';
 
 interface OpportunityBoardProps {
   role: string;
   onPostSpot?: () => void;
 }
 
+interface Gig {
+  id:               string;
+  title:            string;
+  category:         string;
+  venue_name:       string;
+  city:             string;
+  state:            string;
+  date:             string;
+  time:             string;
+  spots:            number;
+  spots_filled:     number;
+  deadline:         string;
+  public_brief:     string;
+  pay_range:        string;
+  set_lengths:      string[];
+  experience_level: string;
+  styles:           string[];
+  vibes:            string[];
+  posted_at:        Timestamp | null;
+}
+
+function timeAgo(ts: Timestamp | null): string {
+  if (!ts) return '';
+  const seconds = Math.floor((Date.now() - ts.toMillis()) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
 export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPostSpot }) => {
   const [mainTab, setMainTab] = useState<'comedians' | 'organizers'>('comedians');
   const [view, setView] = useState<'browse' | 'invites'>('browse');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [gigs,           setGigs]           = useState<Gig[]>([]);
+  const [loadingGigs,    setLoadingGigs]    = useState(true);
+  const [appliedGigIds,  setAppliedGigIds]  = useState<Set<string>>(new Set());
+  const [applyingToGig,  setApplyingToGig]  = useState<Gig | null>(null);
+  const [pitch,          setPitch]          = useState('');
+  const [submitting,     setSubmitting]     = useState(false);
+  const [submitError,    setSubmitError]    = useState('');
 
-  const opportunities = [
-    { id: 1, title: "10-Minute Spot (Paid)", venue: "The Comedy Store", location: "London", date: "Friday, Nov 12", pay: "$50", type: "Showcase", tags: ["Verified Only", "Pro Tier"] },
-    { id: 2, title: "After Dinner Speaker", venue: "Goldman Sachs", location: "Global / Remote", date: "Dec 15", pay: "$2,500", type: "Corporate", tags: ["Corporate Clean"] },
-    { id: 3, title: "Open Mic Headliner", venue: "Chuckles Pub", location: "Manchester", date: "Weekly", pay: "Drinks + $20", type: "Bar Gig", tags: ["Open to All"] },
-    { id: 4, title: "Writing Gig: Roast Battle", venue: "TV Production House", location: "London", date: "Jan 2026", pay: "$400/Day", type: "Writing", tags: ["Experience Required"] },
-    { id: 5, title: "Private Birthday Party", venue: "Private Residence", location: "Beverly Hills", date: "Feb 14", pay: "$1,200", type: "Private", tags: ["Clean Only", "High Energy"] },
-  ];
+  useEffect(() => {
+    async function loadGigs() {
+      try {
+        const uid = auth.currentUser?.uid;
+        const [gigsSnap, appsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'gigs'), where('status', '==', 'published'))),
+          uid
+            ? getDocs(query(collection(db, 'applications'), where('comedian_uid', '==', uid)))
+            : Promise.resolve(null),
+        ]);
+
+        if (appsSnap) {
+          setAppliedGigIds(new Set(appsSnap.docs.map(d => d.data().gig_id as string)));
+        }
+
+        const snap = gigsSnap;
+        const loaded = snap.docs.map(d => {
+          const data = d.data();
+          return {
+            id:               d.id,
+            title:            data.title            ?? '',
+            category:         data.category         ?? '',
+            venue_name:       data.venue_name        ?? '',
+            city:             data.city              ?? '',
+            state:            data.state             ?? '',
+            date:             data.date              ?? '',
+            time:             data.time              ?? '',
+            spots:            data.spots             ?? 1,
+            spots_filled:     data.spots_filled      ?? 0,
+            deadline:         data.deadline          ?? '',
+            public_brief:     data.public_brief      ?? '',
+            pay_range:        data.pay_range         ?? '',
+            set_lengths:      data.set_lengths       ?? [],
+            experience_level: data.experience_level  ?? '',
+            styles:           data.styles            ?? [],
+            vibes:            data.vibes             ?? [],
+            posted_at:        data.posted_at         ?? null,
+          };
+        });
+        loaded.sort((a, b) => (b.posted_at?.toMillis() ?? 0) - (a.posted_at?.toMillis() ?? 0));
+        setGigs(loaded);
+      } catch { /* ignore */ }
+      setLoadingGigs(false);
+    }
+    loadGigs();
+  }, []);
+
+  const handleApply = (gig: Gig) => {
+    if (!auth.currentUser) {
+      alert('Please sign in to apply for gigs.');
+      return;
+    }
+    setPitch('');
+    setSubmitError('');
+    setApplyingToGig(gig);
+  };
+
+  const handleSubmitApplication = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !applyingToGig) return;
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await addDoc(collection(db, 'applications'), {
+        gig_id:       applyingToGig.id,
+        comedian_uid: uid,
+        message:      pitch.trim(),
+        applied_at:   serverTimestamp(),
+        status:       'pending',
+      });
+      setAppliedGigIds(prev => new Set(prev).add(applyingToGig.id));
+      setApplyingToGig(null);
+    } catch {
+      setSubmitError('Something went wrong. Please try again.');
+    }
+    setSubmitting(false);
+  };
 
   return (
+    <>
     <div className="min-h-screen pt-4 lg:pt-12 pb-24 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header Section */}
@@ -142,57 +253,100 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
                    />
                  </div>
 
-                 {opportunities.map((opp) => (
-                   <div key={opp.id} className="glass-card p-6 rounded-2xl border-white/10 hover:border-white/20 hover:bg-[#131b2e]/40 transition-all group">
-                     <div className="flex flex-col md:flex-row justify-between gap-6">
-                       <div className="flex-grow">
-                         <div className="flex items-center gap-3 mb-2">
-                           <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${['Corporate', 'Private'].includes(opp.type) ? 'bg-[#f6a623] text-[#0a0e1a]' : 'bg-[#1e293b] text-[#8892a4]'}`}>
-                             {opp.type}
-                           </span>
-                           <span className="text-[10px] font-bold text-[#8892a4] flex items-center gap-1">
-                             <Clock className="w-3 h-3" /> Posted 2h ago
-                           </span>
-                         </div>
-                         <h3 className="text-2xl font-bold uppercase italic mb-2 group-hover:text-brand-gradient transition-colors text-white">{opp.title}</h3>
-                         
-                         <div className="flex flex-wrap items-center gap-6 mt-4">
-                           <div className="flex items-center gap-2 text-[#8892a4] text-xs font-bold">
-                             <MapPin className="w-4 h-4 text-[#e53e3e]" /> {opp.location} • {opp.venue}
-                           </div>
-                           <div className="flex items-center gap-2 text-[#8892a4] text-xs font-bold">
-                             <Calendar className="w-4 h-4 text-[#e53e3e]" /> {opp.date}
-                           </div>
-                           <div className="flex items-center gap-2 text-[#48bb78] text-xs font-black uppercase italic tracking-widest">
-                             <DollarSign className="w-4 h-4" /> {opp.pay}
-                           </div>
-                         </div>
-                       </div>
-
-                       <div className="flex flex-col sm:flex-row md:flex-col justify-between items-start sm:items-center md:items-end gap-4 min-w-[140px]">
-                          <div className="flex -space-x-2">
-                            <div className="w-8 h-8 rounded-full bg-[#1e293b] border-2 border-[#0a0e1a] flex items-center justify-center text-[8px] font-bold text-white">12</div>
-                            <div className="w-8 h-8 rounded-full bg-[#334155] border-2 border-[#0a0e1a] flex items-center justify-center text-[8px] font-bold text-[#8892a4] leading-none">Apps</div>
-                          </div>
-                          <button className="w-full sm:w-auto bg-brand-gradient hover:opacity-90 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-orange-900/20 active:scale-95 italic">
-                            Apply Now <ArrowUpRight className="w-4 h-4" />
-                          </button>
-                       </div>
-                     </div>
-                     
-                     <div className="mt-6 pt-6 border-t border-white/5 flex flex-wrap gap-2">
-                        {opp.tags.map(tag => (
-                          <span key={tag} className="text-[9px] font-black uppercase tracking-widest text-[#8892a4] px-3 py-1 bg-[#0a0e1a] rounded-full border border-white/5">
-                            {tag}
-                          </span>
-                        ))}
-                     </div>
+                 {loadingGigs ? (
+                   <div className="flex items-center justify-center py-20">
+                     <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
                    </div>
-                 ))}
-                 
-                 <button className="w-full py-6 text-[#8892a4] font-black uppercase text-[10px] tracking-[0.3em] hover:text-white transition-colors">
-                   Load More Opportunities
-                 </button>
+                 ) : gigs.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center py-20 text-[#8892a4] gap-3">
+                     <Briefcase className="w-10 h-10 opacity-20" />
+                     <p className="text-[10px] font-bold uppercase tracking-widest">No gigs posted yet</p>
+                     <p className="text-[11px] font-medium opacity-60">Be the first to post a gig.</p>
+                   </div>
+                 ) : (
+                   gigs.map(gig => {
+                     const location = [gig.city, gig.state].filter(Boolean).join(', ');
+                     const tags = [
+                       gig.experience_level,
+                       ...gig.styles,
+                       ...gig.vibes,
+                     ].filter(Boolean);
+
+                     return (
+                       <div key={gig.id} className="glass-card p-6 rounded-2xl border-white/10 hover:border-white/20 hover:bg-[#131b2e]/40 transition-all group">
+                         <div className="flex flex-col md:flex-row justify-between gap-6">
+                           <div className="flex-grow">
+                             <div className="flex items-center gap-3 mb-2">
+                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${['Corporate', 'Private'].includes(gig.category) ? 'bg-[#f6a623] text-[#0a0e1a]' : 'bg-[#1e293b] text-[#8892a4]'}`}>
+                                 {gig.category}
+                               </span>
+                               {gig.posted_at && (
+                                 <span className="text-[10px] font-bold text-[#8892a4] flex items-center gap-1">
+                                   <Clock className="w-3 h-3" /> Posted {timeAgo(gig.posted_at)}
+                                 </span>
+                               )}
+                             </div>
+                             <h3 className="text-2xl font-bold uppercase italic mb-2 group-hover:text-brand-gradient transition-colors text-white">{gig.title}</h3>
+
+                             {gig.public_brief && (
+                               <p className="text-xs text-[#8892a4] font-medium leading-relaxed mb-3 line-clamp-2">{gig.public_brief}</p>
+                             )}
+
+                             <div className="flex flex-wrap items-center gap-6 mt-2">
+                               {location && (
+                                 <div className="flex items-center gap-2 text-[#8892a4] text-xs font-bold">
+                                   <MapPin className="w-4 h-4 text-[#e53e3e]" />
+                                   {[gig.venue_name, location].filter(Boolean).join(' • ')}
+                                 </div>
+                               )}
+                               {gig.date && (
+                                 <div className="flex items-center gap-2 text-[#8892a4] text-xs font-bold">
+                                   <Calendar className="w-4 h-4 text-[#e53e3e]" />
+                                   {new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                   {gig.time && ` · ${new Date('1970-01-01T' + gig.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+                                 </div>
+                               )}
+                               {gig.pay_range && (
+                                 <div className="flex items-center gap-2 text-[#48bb78] text-xs font-black uppercase italic tracking-widest">
+                                   <DollarSign className="w-4 h-4" /> {gig.pay_range}
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+
+                           <div className="flex flex-col sm:flex-row md:flex-col justify-between items-start sm:items-center md:items-end gap-4 min-w-[140px]">
+                             <div className="text-right">
+                               <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest">Spots</p>
+                               <p className="text-lg font-black text-white italic">{gig.spots - gig.spots_filled} / {gig.spots}</p>
+                             </div>
+                             {appliedGigIds.has(gig.id) ? (
+                               <button disabled className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 italic opacity-80 cursor-not-allowed">
+                                 <CheckCircle2 className="w-4 h-4" /> Applied
+                               </button>
+                             ) : (
+                               <button
+                                 onClick={() => handleApply(gig)}
+                                 className="w-full sm:w-auto bg-brand-gradient hover:opacity-90 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-orange-900/20 active:scale-95 italic"
+                               >
+                                 Apply Now <ArrowUpRight className="w-4 h-4" />
+                               </button>
+                             )}
+                           </div>
+                         </div>
+
+                         {tags.length > 0 && (
+                           <div className="mt-6 pt-6 border-t border-white/5 flex flex-wrap gap-2">
+                             {tags.map(tag => (
+                               <span key={tag} className="text-[9px] font-black uppercase tracking-widest text-[#8892a4] px-3 py-1 bg-[#0a0e1a] rounded-full border border-white/5">
+                                 {tag}
+                               </span>
+                             ))}
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })
+                 )}
               </div>
             </div>
           </div>
@@ -245,5 +399,72 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
         )}
       </div>
     </div>
+
+    {/* Apply Modal */}
+
+    {applyingToGig && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+        <div className="relative w-full max-w-lg bg-[#0f1628] rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
+          <button
+            onClick={() => setApplyingToGig(null)}
+            className="absolute top-6 right-6 p-2 text-[#8892a4] hover:text-white transition-colors hover:bg-white/5 rounded-full"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-3 mb-6">
+            <Briefcase className="w-5 h-5 text-[#e53e3e]" />
+            <h2 className="text-xl font-black italic uppercase tracking-tighter">Apply for Gig</h2>
+          </div>
+
+          {/* Gig context */}
+          <div className="bg-[#131b2e] border border-white/5 rounded-2xl p-4 mb-6 space-y-1">
+            <p className="text-sm font-black italic uppercase tracking-tight text-white">{applyingToGig.title}</p>
+            <div className="flex flex-wrap gap-3 text-[10px] font-bold text-[#8892a4] uppercase tracking-widest">
+              {applyingToGig.category && <span className="text-[#e53e3e]">{applyingToGig.category}</span>}
+              {applyingToGig.pay_range && <span className="text-emerald-400">{applyingToGig.pay_range}</span>}
+              {[applyingToGig.city, applyingToGig.state].filter(Boolean).join(', ')}
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-[#8892a4] mb-2">
+              Pitch / Message <span className="font-medium normal-case tracking-normal">(optional)</span>
+            </label>
+            <textarea
+              value={pitch}
+              onChange={e => setPitch(e.target.value)}
+              placeholder="Tell them about yourself and why you're a great fit for this gig..."
+              rows={4}
+              className="w-full bg-[#131b2e] border border-white/5 rounded-xl px-4 py-3 focus:border-[#e53e3e] outline-none transition-all font-medium text-sm text-white placeholder-[#8892a4] resize-none"
+            />
+          </div>
+
+          {submitError && (
+            <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-4">{submitError}</p>
+          )}
+
+          <div className="flex items-center justify-between gap-4">
+            <button
+              onClick={() => setApplyingToGig(null)}
+              disabled={submitting}
+              className="text-xs font-black uppercase tracking-widest text-[#8892a4] hover:text-white transition-colors italic disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmitApplication}
+              disabled={submitting}
+              className="flex items-center gap-2 bg-brand-gradient text-white px-8 py-4 rounded-xl text-xs font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+            >
+              {submitting
+                ? <><Loader2 className="w-3 h-3 animate-spin" /> Submitting…</>
+                : <>Submit Application <ArrowUpRight className="w-3 h-3" /></>}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };

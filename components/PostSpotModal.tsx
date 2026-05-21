@@ -1,10 +1,36 @@
 
 import React, { useState } from 'react';
-import { X, Mic2, Briefcase, Calendar, Info, Upload, MapPin, Users } from 'lucide-react';
+import { X, Mic2, Briefcase, Calendar, Upload, MapPin, Users, Loader2, AlertCircle } from 'lucide-react';
+import { collection, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { auth } from '../firebase';
+
+export interface ExistingGig {
+  id:               string;
+  title:            string;
+  category:         string;
+  venue_name:       string;
+  city:             string;
+  state:            string;
+  date:             string;
+  time:             string;
+  spots:            number;
+  deadline:         string;
+  public_brief:     string;
+  pay_range:        string;
+  set_lengths:      string[];
+  experience_level: string;
+  styles:           string[];
+  vibes:            string[];
+  status:           string;
+  applicantCount:   number;
+}
 
 interface PostSpotModalProps {
   onClose: () => void;
   initialMode?: 'CHOICE' | 'SHOW' | 'GIG';
+  existingGig?: ExistingGig;
+  onSuccess?: () => void;
 }
 
 const GIG_CATEGORIES = ['Showcase', 'Corporate', 'Private', 'Writing', 'TV / Film'];
@@ -64,26 +90,76 @@ const PillMulti: React.FC<{
   );
 };
 
-export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMode = 'CHOICE' }) => {
-  const [mode, setMode] = useState<'CHOICE' | 'SHOW' | 'GIG'>(initialMode);
+export const PostSpotModal: React.FC<PostSpotModalProps> = ({
+  onClose,
+  initialMode = 'CHOICE',
+  existingGig,
+  onSuccess,
+}) => {
+  const isEditing = !!existingGig;
+  const [mode, setMode] = useState<'CHOICE' | 'SHOW' | 'GIG'>(isEditing ? 'GIG' : initialMode);
   const [step, setStep] = useState(1);
 
-  // ── Gig form state ─────────────────────────────────────────────────────────
-  const [gigTitle,     setGigTitle]     = useState('');
-  const [category,     setCategory]     = useState('');
-  const [venueName,    setVenueName]    = useState('');
-  const [city,         setCity]         = useState('');
-  const [gigState,     setGigState]     = useState('');
-  const [gigDate,      setGigDate]      = useState('');
-  const [gigTime,      setGigTime]      = useState('');
-  const [spots,        setSpots]        = useState('1');
-  const [deadline,     setDeadline]     = useState('');
-  const [publicBrief,  setPublicBrief]  = useState('');
-  const [payRange,     setPayRange]     = useState('');
-  const [setLengths,   setSetLengths]   = useState<string[]>([]);
-  const [expLevel,     setExpLevel]     = useState('');
-  const [styles,       setStyles]       = useState<string[]>([]);
-  const [vibes,        setVibes]        = useState<string[]>([]);
+  // ── Gig form state (pre-filled when editing) ────────────────────────────────
+  const [gigTitle,    setGigTitle]    = useState(existingGig?.title            ?? '');
+  const [category,    setCategory]    = useState(existingGig?.category         ?? '');
+  const [venueName,   setVenueName]   = useState(existingGig?.venue_name       ?? '');
+  const [city,        setCity]        = useState(existingGig?.city             ?? '');
+  const [gigState,    setGigState]    = useState(existingGig?.state            ?? '');
+  const [gigDate,     setGigDate]     = useState(existingGig?.date             ?? '');
+  const [gigTime,     setGigTime]     = useState(existingGig?.time             ?? '');
+  const [spots,       setSpots]       = useState(String(existingGig?.spots     ?? 1));
+  const [deadline,    setDeadline]    = useState(existingGig?.deadline         ?? '');
+  const [publicBrief, setPublicBrief] = useState(existingGig?.public_brief     ?? '');
+  const [payRange,    setPayRange]    = useState(existingGig?.pay_range        ?? '');
+  const [setLengths,  setSetLengths]  = useState<string[]>(existingGig?.set_lengths      ?? []);
+  const [expLevel,    setExpLevel]    = useState(existingGig?.experience_level  ?? '');
+  const [styles,      setStyles]      = useState<string[]>(existingGig?.styles            ?? []);
+  const [vibes,       setVibes]       = useState<string[]>(existingGig?.vibes             ?? []);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleSubmitGig = async (status: 'published' | 'draft') => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) { setSubmitError('You must be signed in to post a gig.'); return; }
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const data = {
+        title:            gigTitle.trim(),
+        category,
+        venue_name:       venueName.trim(),
+        city:             city.trim(),
+        state:            gigState.trim(),
+        date:             gigDate,
+        time:             gigTime,
+        spots:            Number(spots),
+        deadline,
+        public_brief:     publicBrief.trim(),
+        pay_range:        payRange,
+        set_lengths:      setLengths,
+        experience_level: expLevel,
+        styles,
+        vibes,
+        status,
+      };
+      if (isEditing) {
+        await updateDoc(doc(db, 'gigs', existingGig!.id), data);
+      } else {
+        await addDoc(collection(db, 'gigs'), {
+          ...data,
+          posted_by_uid: uid,
+          posted_at:     serverTimestamp(),
+          spots_filled:  0,
+        });
+      }
+      onSuccess?.();
+      onClose();
+    } catch {
+      setSubmitError('Something went wrong. Please try again.');
+    }
+    setSubmitting(false);
+  };
 
   const inputCls = "w-full bg-[#131b2e] border border-white/5 rounded-xl px-4 py-3 focus:border-[#e53e3e] outline-none transition-all font-bold text-sm text-white placeholder-[#8892a4]";
   const lbl = (text: string) => (
@@ -130,16 +206,17 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
   // ── Gig form ───────────────────────────────────────────────────────────────
   const renderGigForm = () => {
     const TOTAL_STEPS = 3;
-
     const step1Valid = gigTitle.trim() !== '' && category !== '';
 
     return (
       <div className="animate-in slide-in-from-bottom-4 duration-500">
         {/* Header + progress */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
             <Briefcase className="w-6 h-6 text-[#e53e3e]" />
-            <h2 className="text-2xl font-black italic uppercase tracking-tighter">POST A GIG</h2>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter">
+              {isEditing ? 'EDIT GIG' : 'POST A GIG'}
+            </h2>
           </div>
           <div className="flex gap-2">
             {Array.from({ length: TOTAL_STEPS }, (_, i) => (
@@ -156,7 +233,17 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
           </p>
         </div>
 
-        <div className="max-h-[58vh] overflow-y-auto pr-2 space-y-6 no-scrollbar">
+        {/* Applicant warning when editing */}
+        {isEditing && existingGig!.applicantCount > 0 && step === 1 && (
+          <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-5">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+              This gig has {existingGig!.applicantCount} applicant{existingGig!.applicantCount !== 1 ? 's' : ''} — changes will be visible to them
+            </p>
+          </div>
+        )}
+
+        <div className="max-h-[52vh] overflow-y-auto pr-2 space-y-6 no-scrollbar">
 
           {/* ── Step 1: Basics ──────────────────────────────────────────── */}
           {step === 1 && (
@@ -191,67 +278,33 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   {lbl('City')}
-                  <input
-                    type="text"
-                    value={city}
-                    onChange={e => setCity(e.target.value)}
-                    placeholder="City"
-                    className={inputCls}
-                  />
+                  <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="City" className={inputCls} />
                 </div>
                 <div>
                   {lbl('State')}
-                  <input
-                    type="text"
-                    value={gigState}
-                    onChange={e => setGigState(e.target.value)}
-                    placeholder="State"
-                    className={inputCls}
-                  />
+                  <input type="text" value={gigState} onChange={e => setGigState(e.target.value)} placeholder="State" className={inputCls} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   {lbl('Date')}
-                  <input
-                    type="date"
-                    value={gigDate}
-                    onChange={e => setGigDate(e.target.value)}
-                    className={`${inputCls} text-[#8892a4]`}
-                  />
+                  <input type="date" value={gigDate} onChange={e => setGigDate(e.target.value)} className={`${inputCls} text-[#8892a4]`} />
                 </div>
                 <div>
                   {lbl('Start Time')}
-                  <input
-                    type="time"
-                    value={gigTime}
-                    onChange={e => setGigTime(e.target.value)}
-                    className={`${inputCls} text-[#8892a4]`}
-                  />
+                  <input type="time" value={gigTime} onChange={e => setGigTime(e.target.value)} className={`${inputCls} text-[#8892a4]`} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   {lbl('Spots Available')}
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={spots}
-                    onChange={e => setSpots(e.target.value)}
-                    className={inputCls}
-                  />
+                  <input type="number" min="1" max="50" value={spots} onChange={e => setSpots(e.target.value)} className={inputCls} />
                 </div>
                 <div>
                   {lbl('Application Deadline')}
-                  <input
-                    type="date"
-                    value={deadline}
-                    onChange={e => setDeadline(e.target.value)}
-                    className={`${inputCls} text-[#8892a4]`}
-                  />
+                  <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className={`${inputCls} text-[#8892a4]`} />
                 </div>
               </div>
             </div>
@@ -305,9 +358,10 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
           {/* ── Step 3: Review & Publish ─────────────────────────────────── */}
           {step === 3 && (
             <div className="space-y-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">Draft Preview</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">
+                {isEditing ? 'Review Changes' : 'Draft Preview'}
+              </p>
 
-              {/* Preview card */}
               <div className="glass-card p-6 rounded-2xl border-white/10 bg-[#0f1628] space-y-4">
                 {category && (
                   <span className="inline-block px-3 py-1 rounded-full bg-[#e53e3e]/10 border border-[#e53e3e]/20 text-[9px] font-black uppercase tracking-widest text-[#e53e3e]">
@@ -344,19 +398,13 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
                     </span>
                   )}
                   {setLengths.map(s => (
-                    <span key={s} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">
-                      {s}
-                    </span>
+                    <span key={s} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">{s}</span>
                   ))}
                   {styles.map(s => (
-                    <span key={s} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">
-                      {s}
-                    </span>
+                    <span key={s} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">{s}</span>
                   ))}
                   {vibes.map(v => (
-                    <span key={v} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">
-                      {v}
-                    </span>
+                    <span key={v} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8892a4]">{v}</span>
                   ))}
                 </div>
 
@@ -368,13 +416,6 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
                   </div>
                 )}
               </div>
-
-              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3">
-                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-blue-400 leading-relaxed font-bold uppercase tracking-wider">
-                  League of Comedy charges a 10% booking fee on confirmed bookings. No upfront cost to post.
-                </p>
-              </div>
             </div>
           )}
         </div>
@@ -382,28 +423,39 @@ export const PostSpotModal: React.FC<PostSpotModalProps> = ({ onClose, initialMo
         {/* Footer nav */}
         <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
           <button
-            onClick={() => step > 1 ? setStep(step - 1) : (initialMode === 'GIG' ? onClose() : setMode('CHOICE'))}
-            className="text-xs font-black uppercase tracking-widest text-[#8892a4] hover:text-white transition-colors italic"
+            onClick={() => step > 1 ? setStep(step - 1) : (isEditing || initialMode === 'GIG' ? onClose() : setMode('CHOICE'))}
+            disabled={submitting}
+            className="text-xs font-black uppercase tracking-widest text-[#8892a4] hover:text-white transition-colors italic disabled:opacity-40"
           >
-            {step === 1 && initialMode !== 'GIG' ? '← Back' : step > 1 ? '← Back' : 'Cancel'}
+            {step > 1 ? '← Back' : 'Cancel'}
           </button>
 
-          <div className="flex items-center gap-4">
-            {step === 3 && (
-              <button
-                onClick={onClose}
-                className="text-xs font-black uppercase tracking-widest text-[#8892a4] hover:text-white transition-colors italic underline underline-offset-4"
-              >
-                Save as Draft
-              </button>
+          <div className="flex flex-col items-end gap-2">
+            {submitError && (
+              <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">{submitError}</p>
             )}
-            <button
-              onClick={() => step < TOTAL_STEPS ? setStep(step + 1) : onClose()}
-              disabled={step === 1 && !step1Valid}
-              className="bg-brand-gradient text-white px-8 py-4 rounded-xl text-xs font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
-            >
-              {step === TOTAL_STEPS ? 'Publish Gig →' : 'Continue →'}
-            </button>
+            <div className="flex items-center gap-4">
+              {step === 3 && (
+                <button
+                  onClick={() => handleSubmitGig('draft')}
+                  disabled={submitting}
+                  className="text-xs font-black uppercase tracking-widest text-[#8892a4] hover:text-white transition-colors italic underline underline-offset-4 disabled:opacity-40"
+                >
+                  {isEditing ? 'Save as Draft' : 'Save as Draft'}
+                </button>
+              )}
+              <button
+                onClick={() => step < TOTAL_STEPS ? setStep(step + 1) : handleSubmitGig('published')}
+                disabled={(step === 1 && !step1Valid) || submitting}
+                className="flex items-center gap-2 bg-brand-gradient text-white px-8 py-4 rounded-xl text-xs font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                {submitting
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>
+                  : step === TOTAL_STEPS
+                    ? isEditing ? 'Update Gig →' : 'Publish Gig →'
+                    : 'Continue →'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
