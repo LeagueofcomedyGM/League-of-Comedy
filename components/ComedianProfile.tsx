@@ -236,61 +236,171 @@ export const ComedianProfile: React.FC<{
         </button>
       </div>
 
-      {/* ── MOBILE HERO (< lg): amber roster-card style ── */}
-      <div className="lg:hidden mt-4 mx-4 sm:mx-6 space-y-4">
-        <div className="rounded-2xl overflow-hidden flex items-stretch bg-[#f6a623]">
-          {/* Profile image */}
-          <div className="w-32 sm:w-40 shrink-0 bg-[#0a0e1a]/20 flex items-center justify-center overflow-hidden">
-            {profile.image
-              ? <img src={profile.image} alt={profile.name} className="w-full h-full object-cover" />
-              : <Mic2 className="w-10 h-10 text-[#0a0e1a]/20" />}
-          </div>
-          {/* Info */}
-          <div className="flex-grow min-w-0 p-4 flex flex-col gap-1.5">
-            <h1 className="text-xl font-black italic uppercase tracking-tighter text-[#0a0e1a] leading-none">{profile.name || 'Comedian'}</h1>
-            {profile.location && (
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0a0e1a]/70 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-[#e53e3e] shrink-0" /> {profile.location}
-              </p>
-            )}
-            {profile.level && (
-              <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0e1a]/50">{profile.level}</span>
-            )}
-            <span className="text-[10px] font-bold text-[#0a0e1a]/60 flex items-center gap-1">
-              <Users className="w-3 h-3" /> {followCount.toLocaleString()} followers
-            </span>
-
-            <div className="mt-auto pt-1 space-y-2">
-              {hasSocials && (
-                <div className="flex flex-wrap gap-1.5">
-                  <SocialIcons profile={profile} size="sm" />
-                </div>
-              )}
-              <FollowButton className="w-full text-center justify-center" />
+      {/* ── MOBILE HERO (< lg): modal-style (video/gradient + overlapping avatar) ── */}
+      <div className="lg:hidden">
+        <div className="relative mt-4">
+          {embedUrl ? (
+            <div className="aspect-video w-full bg-black">
+              <iframe
+                src={embedUrl}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={`${profile.name} — Comedy Clip`}
+              />
             </div>
+          ) : (
+            <div className="h-28 sm:h-36 bg-gradient-to-br from-[#131b2e] to-[#0a0e1a]" />
+          )}
+
+          {/* Avatar overlapping bottom of hero */}
+          <div className="absolute bottom-0 left-6 sm:left-8 translate-y-1/2">
+            {profile.image ? (
+              <img
+                src={profile.image}
+                alt={profile.name}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-4 border-[#0a0e1a] shadow-xl"
+              />
+            ) : (
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-amber-500/10 border-4 border-[#0a0e1a] flex items-center justify-center shadow-xl">
+                <Mic2 className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 opacity-60" />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Video on mobile */}
-        {embedUrl ? (
-          <div className="rounded-2xl overflow-hidden aspect-video bg-black">
-            <iframe
-              src={embedUrl}
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={`${profile.name} — Comedy Clip`}
-            />
-          </div>
-        ) : profile.clipLink ? (
-          <a href={profile.clipLink} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-red-500/40 transition-all group">
-            <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-600/20 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-red-500" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        {/* Content */}
+        <div className="pt-12 sm:pt-14 px-4 sm:px-6 pb-8 space-y-5">
+
+          {/* Name + meta */}
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black italic uppercase tracking-tighter text-white">
+              {profile.name || 'Comedian'}
+            </h1>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {profile.location && (
+                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-red-500" /> {profile.location}
+                </span>
+              )}
+              {profile.level && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-black uppercase tracking-widest text-amber-400">
+                  {profile.level}
+                </span>
+              )}
+              <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                <Users className="w-3 h-3" /> {followCount.toLocaleString()} followers
+              </span>
             </div>
-            <p className="text-xs font-black uppercase italic tracking-tight text-white group-hover:text-red-400 transition-colors">Watch Comedy Clip →</p>
-          </a>
-        ) : null}
+          </div>
+
+          {/* Follow button */}
+          <FollowButton />
+
+          {/* Bio */}
+          {profile.bio && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">About</p>
+              <p className="text-sm text-slate-400 leading-relaxed">{profile.bio}</p>
+            </div>
+          )}
+
+          {/* Style / Vibe / Theme tags — inline */}
+          {hasTags && (
+            <div className="flex flex-wrap gap-1.5">
+              {profile.styles.map(s => (
+                <span key={s} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-slate-300">{s}</span>
+              ))}
+              {profile.vibes.map(v => (
+                <span key={v} className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-[9px] font-black uppercase tracking-widest text-purple-400">{v}</span>
+              ))}
+              {profile.themes.map(t => (
+                <span key={t} className="px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-400">{t}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Booking (condensed inline) */}
+          {hasBooking && (
+            <div className="space-y-2">
+              {profile.rateRange && (
+                <p className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5" /> {profile.rateRange}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {profile.setLengths.map(s => (
+                  <span key={s} className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-400">{s}</span>
+                ))}
+                {profile.payments.map(p => (
+                  <span key={p} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-slate-400">{p}</span>
+                ))}
+                {profile.languages.map(l => (
+                  <span key={l} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-slate-400">{l}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Clip fallback */}
+          {profile.clipLink && !embedUrl && (
+            <a href={profile.clipLink} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-red-500/40 hover:bg-slate-800 transition-all group">
+              <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-600/20 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 text-red-500" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <p className="text-xs font-black uppercase italic tracking-tight text-white group-hover:text-red-400 transition-colors">Watch Comedy Clip</p>
+            </a>
+          )}
+
+          {/* Social links as text pills (matching applicant modal style) */}
+          {hasSocials && (
+            <div className="flex flex-wrap gap-2">
+              {profile.instagram && (
+                <a href={profile.instagram} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-all">
+                  Instagram
+                </a>
+              )}
+              {profile.tiktok && (
+                <a href={profile.tiktok} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all">
+                  TikTok
+                </a>
+              )}
+              {profile.youtube && (
+                <a href={profile.youtube} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all">
+                  YouTube
+                </a>
+              )}
+              {profile.xLink && (
+                <a href={profile.xLink} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all">
+                  X / Twitter
+                </a>
+              )}
+              {profile.facebook && (
+                <a href={profile.facebook} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-blue-600/10 border border-blue-600/20 text-blue-400 hover:bg-blue-600/20 transition-all">
+                  Facebook
+                </a>
+              )}
+              {profile.imdb && (
+                <a href={profile.imdb} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all">
+                  IMDb
+                </a>
+              )}
+              {profile.website && (
+                <a href={profile.website} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all">
+                  Website
+                </a>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── DESKTOP HERO (lg+): identity left + video right ── */}
