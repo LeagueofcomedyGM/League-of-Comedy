@@ -2,15 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Trophy, Globe, MapPin, Star, Heart, Loader2, Mic2 } from 'lucide-react';
+import { Trophy, Globe, MapPin, Star, Users, Loader2, Mic2 } from 'lucide-react';
 
 interface LeaderboardEntry {
-  uid:      string;
-  name:     string;
-  likes:    number;
-  location: string;
-  image:    string;
-  avatar:   string;
+  uid:       string;
+  name:      string;
+  followers: number;
+  location:  string;
+  image:     string;
+  avatar:    string;
 }
 
 const AvatarCircle: React.FC<{ entry: LeaderboardEntry; size?: 'sm' | 'lg'; border?: string }> = ({
@@ -59,16 +59,16 @@ export const Leaderboards: React.FC = () => {
               .slice(0, 2)
               .toUpperCase();
             return {
-              uid:      d.id,
+              uid:       d.id,
               name,
-              likes:    dd.likes    ?? 0,
-              location: dd.location ?? '',
-              image:    dd.comedian_image ?? '',
-              avatar:   initials || '?',
+              followers: (dd.followers ?? []).length,
+              location:  dd.location ?? '',
+              image:     dd.comedian_image ?? '',
+              avatar:    initials || '?',
             };
           })
           .filter(c => c.name.trim() !== '')
-          .sort((a, b) => b.likes - a.likes);
+          .sort((a, b) => b.followers - a.followers);
         setComedians(data);
       } catch { /* ignore */ }
       setLoading(false);
@@ -136,7 +136,7 @@ export const Leaderboards: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-24 text-slate-500 gap-3">
               <Mic2 className="w-12 h-12 opacity-20" />
               <p className="text-sm font-bold uppercase tracking-widest">No comedians on the leaderboard yet</p>
-              <p className="text-xs opacity-60">Like comedians in the Scenes roster to get them ranked.</p>
+              <p className="text-xs opacity-60">Follow comedians in the Scenes roster to get them ranked.</p>
             </div>
           ) : (
             <>
@@ -150,8 +150,8 @@ export const Leaderboards: React.FC = () => {
                     <h3 className="text-xl font-bold uppercase italic">{top3[1].name}</h3>
                     <p className="text-slate-500 text-xs mb-4 uppercase tracking-widest">{top3[1].location}</p>
                     <div className="flex items-center justify-center gap-2 text-2xl font-black text-white">
-                      <Heart className="w-5 h-5 text-red-500 fill-red-500" />
-                      {top3[1].likes.toLocaleString()}
+                      <Users className="w-5 h-5 text-amber-500" />
+                      {top3[1].followers.toLocaleString()}
                     </div>
                   </div>
                 )}
@@ -166,8 +166,8 @@ export const Leaderboards: React.FC = () => {
                     <h3 className="text-2xl font-bold uppercase italic">{top3[0].name}</h3>
                     <p className="text-amber-500/80 text-xs mb-6 uppercase tracking-widest font-bold">{top3[0].location}</p>
                     <div className="flex items-center justify-center gap-2 text-4xl font-black gradient-text">
-                      <Heart className="w-7 h-7 text-red-500 fill-red-500" />
-                      {top3[0].likes.toLocaleString()}
+                      <Users className="w-7 h-7 text-amber-500" />
+                      {top3[0].followers.toLocaleString()}
                     </div>
                     <div className="mt-4 flex justify-center gap-1">
                       {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-4 h-4 fill-amber-500 text-amber-500" />)}
@@ -183,8 +183,8 @@ export const Leaderboards: React.FC = () => {
                     <h3 className="text-xl font-bold uppercase italic">{top3[2].name}</h3>
                     <p className="text-slate-500 text-xs mb-4 uppercase tracking-widest">{top3[2].location}</p>
                     <div className="flex items-center justify-center gap-2 text-2xl font-black text-white">
-                      <Heart className="w-5 h-5 text-red-500 fill-red-500" />
-                      {top3[2].likes.toLocaleString()}
+                      <Users className="w-5 h-5 text-amber-500" />
+                      {top3[2].followers.toLocaleString()}
                     </div>
                   </div>
                 )}
@@ -211,10 +211,10 @@ export const Leaderboards: React.FC = () => {
                       </div>
                       <div className="text-right shrink-0">
                         <div className="flex items-center gap-1 text-xl font-black italic justify-end">
-                          <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-                          {item.likes.toLocaleString()}
+                          <Users className="w-4 h-4 text-amber-500" />
+                          {item.followers.toLocaleString()}
                         </div>
-                        <div className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Likes</div>
+                        <div className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Followers</div>
                       </div>
                     </div>
                   ))}

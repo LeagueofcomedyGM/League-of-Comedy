@@ -45,7 +45,6 @@ interface RosterComedian {
   instagram: string;
   xLink:     string;
   youtube:   string;
-  likes:     number;
 }
 
 interface RosterOrganizer {
@@ -81,9 +80,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const [followingOrganizers,   setFollowingOrganizers]   = useState<Set<string>>(new Set());
   const [followingOrganizerId,  setFollowingOrganizerId]  = useState<string | null>(null);
   const [hoverOrganizerId,      setHoverOrganizerId]      = useState<string | null>(null);
-  const [likedComedians,        setLikedComedians]        = useState<Set<string>>(new Set());
-  const [likingComedianId,      setLikingComedianId]      = useState<string | null>(null);
-  const [comedianLikes,         setComedianLikes]         = useState<Record<string, number>>({});
 
   const sceneSlug = initialTab ?? 'los-angeles';
 
@@ -114,7 +110,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
               instagram: data.instagram_link  ?? '',
               xLink:     data.x_link          ?? '',
               youtube:   data.youtube_link    ?? '',
-              likes:     data.likes           ?? 0,
             };
           })
           .filter(c =>
@@ -122,9 +117,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
             c.location.toLowerCase().includes(cityName.toLowerCase())
           );
         setRosterComedians(comedians);
-        const likesMap: Record<string, number> = {};
-        comedians.forEach(c => { likesMap[c.docId] = c.likes; });
-        setComedianLikes(likesMap);
       } catch { /* ignore */ }
       setLoadingRoster(false);
     }
@@ -171,7 +163,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     setFollowerCount(0);
     setFollowingComedians(new Set());
     setFollowingOrganizers(new Set());
-    setLikedComedians(new Set());
 
     if (!authUser) return;
 
@@ -186,7 +177,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
         setIsFollowed(scenes.includes(sceneSlug));
         setFollowingComedians(new Set(data.following_comedians ?? []));
         setFollowingOrganizers(new Set(data.following_organizers ?? []));
-        setLikedComedians(new Set(data.liked_comedians ?? []));
         if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
           setFollowerCount(sceneSnap.data().follower_count as number);
         }
@@ -363,46 +353,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     setFollowingOrganizerId(null);
   };
 
-  const handleComedianLike = async (comedianId: string) => {
-    if (!authUser) {
-      alert("Please sign in to like comedians.");
-      return;
-    }
-    const nowLiking = !likedComedians.has(comedianId);
-
-    setLikedComedians(prev => {
-      const next = new Set(prev);
-      nowLiking ? next.add(comedianId) : next.delete(comedianId);
-      return next;
-    });
-    setComedianLikes(prev => ({
-      ...prev,
-      [comedianId]: (prev[comedianId] ?? 0) + (nowLiking ? 1 : -1),
-    }));
-    setLikingComedianId(comedianId);
-
-    try {
-      await Promise.all([
-        updateDoc(doc(db, 'users', authUser.uid), {
-          liked_comedians: nowLiking ? arrayUnion(comedianId) : arrayRemove(comedianId),
-        }),
-        updateDoc(doc(db, 'comedians', comedianId), {
-          likes: increment(nowLiking ? 1 : -1),
-        }),
-      ]);
-    } catch {
-      setLikedComedians(prev => {
-        const next = new Set(prev);
-        nowLiking ? next.delete(comedianId) : next.add(comedianId);
-        return next;
-      });
-      setComedianLikes(prev => ({
-        ...prev,
-        [comedianId]: (prev[comedianId] ?? 0) + (nowLiking ? -1 : 1),
-      }));
-    }
-    setLikingComedianId(null);
-  };
 
   const renderShows = (shows: typeof mockShows) => (
     <div className="animate-in fade-in duration-500">
@@ -527,16 +477,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                           <Youtube className="w-3 h-3 md:w-4 md:h-4" />
                         </button>
                       )}
-                      <button
-                        onClick={e => { e.stopPropagation(); handleComedianLike(cid); }}
-                        disabled={likingComedianId === cid}
-                        className={`flex items-center gap-0.5 text-[10px] font-black transition-all ml-1 disabled:opacity-40 ${
-                          likedComedians.has(cid) ? 'text-red-500' : 'text-[#0a0e1a]/30 hover:text-red-400'
-                        }`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${likedComedians.has(cid) ? 'fill-red-500' : ''}`} />
-                        <span>{comedianLikes[cid] ?? 0}</span>
-                      </button>
                     </div>
 
                     {isOwnCard ? (
