@@ -293,39 +293,11 @@ export const ComedianProfile: React.FC<{
         ) : null}
       </div>
 
-      {/* ── DESKTOP HERO (lg+): video left + identity right ── */}
+      {/* ── DESKTOP HERO (lg+): identity left + video right ── */}
       <div className="hidden lg:block mt-6">
         <div className="max-w-5xl mx-auto px-6 grid grid-cols-5 gap-8 items-start">
 
-          {/* Left: video / gradient */}
-          <div className="col-span-3">
-            {embedUrl ? (
-              <div className="aspect-video rounded-2xl overflow-hidden bg-black">
-                <iframe
-                  src={embedUrl}
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  title={`${profile.name} — Comedy Clip`}
-                />
-              </div>
-            ) : (
-              <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#1a0a2e] via-[#0f1628] to-[#0a0e1a] flex items-center justify-center relative overflow-hidden">
-                <Mic2 className="absolute inset-0 m-auto w-40 h-40 text-white opacity-[0.03]" />
-                {profile.clipLink && (
-                  <a href={profile.clipLink} target="_blank" rel="noopener noreferrer"
-                    className="relative z-10 flex flex-col items-center gap-3 text-white/50 hover:text-white transition-colors group">
-                    <div className="w-16 h-16 rounded-full bg-white/10 group-hover:bg-white/20 transition-all flex items-center justify-center">
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 ml-1"><path d="M8 5v14l11-7z"/></svg>
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest">Watch Clip →</span>
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Right: profile pic + identity */}
+          {/* Left: profile pic + identity */}
           <div className="col-span-2 flex flex-col gap-5">
             {/* Profile image */}
             <div className="w-full max-w-[200px]">
@@ -373,6 +345,34 @@ export const ComedianProfile: React.FC<{
 
             {/* Follow button */}
             <FollowButton />
+          </div>
+
+          {/* Right: video / gradient */}
+          <div className="col-span-3">
+            {embedUrl ? (
+              <div className="aspect-video rounded-2xl overflow-hidden bg-black">
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title={`${profile.name} — Comedy Clip`}
+                />
+              </div>
+            ) : (
+              <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#1a0a2e] via-[#0f1628] to-[#0a0e1a] flex items-center justify-center relative overflow-hidden">
+                <Mic2 className="absolute inset-0 m-auto w-40 h-40 text-white opacity-[0.03]" />
+                {profile.clipLink && (
+                  <a href={profile.clipLink} target="_blank" rel="noopener noreferrer"
+                    className="relative z-10 flex flex-col items-center gap-3 text-white/50 hover:text-white transition-colors group">
+                    <div className="w-16 h-16 rounded-full bg-white/10 group-hover:bg-white/20 transition-all flex items-center justify-center">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 ml-1"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Watch Clip →</span>
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
