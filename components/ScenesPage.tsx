@@ -479,31 +479,39 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                       )}
                     </div>
 
-                    {isOwnCard ? (
-                      <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/40">
-                        You
-                      </span>
-                    ) : (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
-                        onMouseEnter={() => setHoverComedianId(cid)}
-                        onMouseLeave={() => setHoverComedianId(null)}
-                        disabled={isLoading}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isLoading
-                            ? 'bg-black/20 text-black/40'
-                            : isFollowing
-                              ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
-                              : 'bg-[#0a0e1a] text-white hover:bg-black'
-                        }`}
+                        onClick={e => { e.stopPropagation(); navigateTo(PageType.COMEDIAN_PROFILE, cid); }}
+                        className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/70 hover:bg-black/20 transition-all"
                       >
-                        {isLoading
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : isFollowing
-                            ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
-                            : '+ Follow'}
+                        View Profile
                       </button>
-                    )}
+                      {isOwnCard ? (
+                        <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/40">
+                          You
+                        </span>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
+                          onMouseEnter={() => setHoverComedianId(cid)}
+                          onMouseLeave={() => setHoverComedianId(null)}
+                          disabled={isLoading}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isLoading
+                              ? 'bg-black/20 text-black/40'
+                              : isFollowing
+                                ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+                                : 'bg-[#0a0e1a] text-white hover:bg-black'
+                          }`}
+                        >
+                          {isLoading
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : isFollowing
+                              ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                              : '+ Follow'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -559,31 +567,39 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                       </p>
                     </div>
 
-                    {isOwnCard ? (
-                      <span className="shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 text-[#8892a4]">
-                        You
-                      </span>
-                    ) : (
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={e => { e.stopPropagation(); handleOrganizerFollow(oid); }}
-                        onMouseEnter={() => setHoverOrganizerId(oid)}
-                        onMouseLeave={() => setHoverOrganizerId(null)}
-                        disabled={isLoading}
-                        className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isLoading
-                            ? 'bg-white/10 text-white/40'
-                            : isFollowing
-                              ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
-                              : 'bg-white/10 text-white hover:bg-white/20'
-                        }`}
+                        onClick={e => { e.stopPropagation(); navigateTo(PageType.ORGANIZER_PROFILE, oid); }}
+                        className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-400 hover:border-amber-500/30 hover:text-amber-400 transition-all"
                       >
-                        {isLoading
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : isFollowing
-                            ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
-                            : '+ Follow'}
+                        View Profile
                       </button>
-                    )}
+                      {isOwnCard ? (
+                        <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 text-[#8892a4]">
+                          You
+                        </span>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleOrganizerFollow(oid); }}
+                          onMouseEnter={() => setHoverOrganizerId(oid)}
+                          onMouseLeave={() => setHoverOrganizerId(null)}
+                          disabled={isLoading}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isLoading
+                              ? 'bg-white/10 text-white/40'
+                              : isFollowing
+                                ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+                                : 'bg-white/10 text-white hover:bg-white/20'
+                          }`}
+                        >
+                          {isLoading
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : isFollowing
+                              ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                              : '+ Follow'}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {org.roles.length > 0 && (

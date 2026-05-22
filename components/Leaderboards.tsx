@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Trophy, Globe, MapPin, Star, Users, Loader2, Mic2 } from 'lucide-react';
+import { PageType } from '../types';
 
 interface LeaderboardEntry {
   uid:       string;
@@ -34,7 +35,7 @@ const AvatarCircle: React.FC<{ entry: LeaderboardEntry; size?: 'sm' | 'lg'; bord
   );
 };
 
-export const Leaderboards: React.FC = () => {
+export const Leaderboards: React.FC<{ navigateTo?: (page: PageType, tab?: string) => void }> = ({ navigateTo }) => {
   const [activeTab, setActiveTab] = useState<'comedians' | 'fans'>('comedians');
   const [scope,     setScope]     = useState<'global' | 'country' | 'city'>('global');
   const [comedians, setComedians] = useState<LeaderboardEntry[]>([]);
@@ -144,7 +145,7 @@ export const Leaderboards: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end">
                 {/* Rank 2 */}
                 {top3[1] && (
-                  <div className="order-2 md:order-1 glass-card p-6 rounded-3xl text-center border-slate-800 relative group hover:-translate-y-2 transition-transform h-fit">
+                  <div onClick={() => navigateTo?.(PageType.COMEDIAN_PROFILE, top3[1].uid)} className="order-2 md:order-1 glass-card p-6 rounded-3xl text-center border-slate-800 relative group hover:-translate-y-2 transition-transform h-fit cursor-pointer">
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-slate-700 text-white px-3 py-1 rounded-full text-xs font-black italic">#2</div>
                     <AvatarCircle entry={top3[1]} />
                     <h3 className="text-xl font-bold uppercase italic">{top3[1].name}</h3>
@@ -158,7 +159,7 @@ export const Leaderboards: React.FC = () => {
 
                 {/* Rank 1 */}
                 {top3[0] && (
-                  <div className={`${top3[1] ? 'order-1 md:order-2' : ''} glass-card p-8 rounded-[2.5rem] text-center border-amber-500/30 relative group hover:-translate-y-4 transition-transform shadow-2xl shadow-amber-500/10`}>
+                  <div onClick={() => navigateTo?.(PageType.COMEDIAN_PROFILE, top3[0].uid)} className={`${top3[1] ? 'order-1 md:order-2' : ''} glass-card p-8 rounded-[2.5rem] text-center border-amber-500/30 relative group hover:-translate-y-4 transition-transform shadow-2xl shadow-amber-500/10 cursor-pointer`}>
                     <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 px-4 py-2 rounded-full text-sm font-black italic flex items-center gap-2">
                       <Trophy className="w-4 h-4" /> CHAMPION
                     </div>
@@ -177,7 +178,7 @@ export const Leaderboards: React.FC = () => {
 
                 {/* Rank 3 */}
                 {top3[2] && (
-                  <div className="order-3 glass-card p-6 rounded-3xl text-center border-slate-800 relative group hover:-translate-y-2 transition-transform h-fit">
+                  <div onClick={() => navigateTo?.(PageType.COMEDIAN_PROFILE, top3[2].uid)} className="order-3 glass-card p-6 rounded-3xl text-center border-slate-800 relative group hover:-translate-y-2 transition-transform h-fit cursor-pointer">
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-900/40 text-amber-500 px-3 py-1 rounded-full text-xs font-black italic border border-amber-500/20">#3</div>
                     <AvatarCircle entry={top3[2]} />
                     <h3 className="text-xl font-bold uppercase italic">{top3[2].name}</h3>
@@ -194,7 +195,7 @@ export const Leaderboards: React.FC = () => {
               {rest.length > 0 && (
                 <div className="space-y-4">
                   {rest.map((item, i) => (
-                    <div key={item.uid} className="glass-card p-4 rounded-2xl flex items-center gap-6 border-slate-800/50 hover:bg-slate-900/50 transition-all cursor-pointer group">
+                    <div key={item.uid} onClick={() => navigateTo?.(PageType.COMEDIAN_PROFILE, item.uid)} className="glass-card p-4 rounded-2xl flex items-center gap-6 border-slate-800/50 hover:bg-slate-900/50 transition-all cursor-pointer group">
                       <div className="text-2xl font-black italic text-slate-600 group-hover:text-red-600 transition-colors w-12 text-center">#{i + 4}</div>
                       <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400 group-hover:border-red-500 transition-all border-2 border-transparent overflow-hidden shrink-0">
                         {item.image

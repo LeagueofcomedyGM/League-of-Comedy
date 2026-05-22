@@ -290,29 +290,37 @@ export const Home: React.FC<HomeProps> = ({ navigateTo, onPostSpot, initialTab, 
                       )}
                     </div>
 
-                    {isOwnCard ? (
-                      <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/40">You</span>
-                    ) : (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
-                        onMouseEnter={() => setHoverComedianId(cid)}
-                        onMouseLeave={() => setHoverComedianId(null)}
-                        disabled={isLoading}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isLoading
-                            ? 'bg-black/20 text-black/40'
-                            : isFollowing
-                              ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
-                              : 'bg-[#0a0e1a] text-white hover:bg-black'
-                        }`}
+                        onClick={e => { e.stopPropagation(); navigateTo(PageType.COMEDIAN_PROFILE, cid); }}
+                        className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/70 hover:bg-black/20 transition-all"
                       >
-                        {isLoading
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : isFollowing
-                            ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
-                            : '+ Follow'}
+                        View Profile
                       </button>
-                    )}
+                      {isOwnCard ? (
+                        <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/40">You</span>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleComedianFollow(cid); }}
+                          onMouseEnter={() => setHoverComedianId(cid)}
+                          onMouseLeave={() => setHoverComedianId(null)}
+                          disabled={isLoading}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isLoading
+                              ? 'bg-black/20 text-black/40'
+                              : isFollowing
+                                ? isHovering ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+                                : 'bg-[#0a0e1a] text-white hover:bg-black'
+                          }`}
+                        >
+                          {isLoading
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : isFollowing
+                              ? isHovering ? 'Unfollow' : <><Check className="w-3 h-3" /> Following</>
+                              : '+ Follow'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

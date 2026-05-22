@@ -6,7 +6,7 @@ import {
   arrayRemove, increment, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { UserRole } from '../types';
+import { PageType, UserRole } from '../types';
 import { PostSpotModal, ExistingGig } from './PostSpotModal';
 import {
   Trophy,
@@ -41,6 +41,7 @@ interface UserDashboardProps {
   role: UserRole;
   authUser: FirebaseUser | null;
   initialTab?: string | null;
+  navigateTo?: (page: PageType, tab?: string) => void;
 }
 
 // ── Nav config per role ────────────────────────────────────────────────────────
@@ -1976,10 +1977,11 @@ const OrganizerCapabilities = () => (
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, initialTab }) => {
+export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, initialTab, navigateTo }) => {
   const [activeTab,      setActiveTab]      = useState(initialTab ?? 'home');
   const [isPostGigOpen,  setIsPostGigOpen]  = useState(false);
   const [liveStats,        setLiveStats]        = useState<Record<string, number>>({});
+  const [comedianDocId,    setComedianDocId]    = useState<string | null>(null);
   const [followersOpen,    setFollowersOpen]    = useState(false);
   const [followersList,    setFollowersList]    = useState<{ uid: string; name: string; role: string }[]>([]);
   const [loadingFollowers, setLoadingFollowers] = useState(false);
@@ -2009,10 +2011,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
           const directSnap = await getDoc(doc(db, 'comedians', authUser!.uid));
           if (directSnap.exists()) {
             followers = directSnap.data()?.followers ?? [];
+            setComedianDocId(authUser!.uid);
           } else {
             // Legacy claimed profile — doc ID differs from UID
             const q = await getDocs(query(collection(db, 'comedians'), where('uid', '==', authUser!.uid)));
-            if (!q.empty) followers = q.docs[0].data().followers ?? [];
+            if (!q.empty) {
+              followers = q.docs[0].data().followers ?? [];
+              setComedianDocId(q.docs[0].id);
+            }
           }
           setLiveStats({ 'Followers': followers.length });
         } else if (role === 'fan') {
@@ -2060,10 +2066,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
       const orgMap: Record<string, string> = {};
       orgDocs.docs.forEach(d => { if (d.data()?.display_name) orgMap[d.id] = d.data().display_name; });
 
+      const fanUids = uids.filter(uid => !comedianMap[uid] && !orgMap[uid]);
+      const fanMap: Record<string, string> = {};
+      if (fanUids.length > 0) {
+        const fanDocs = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', fanUids.slice(0, 30))));
+        fanDocs.docs.forEach(d => { fanMap[d.id] = d.data()?.display_name ?? ''; });
+      }
+
       const resolved = uids.map(uid => {
         if (comedianMap[uid]) return { uid, name: comedianMap[uid], role: 'comedian' };
         if (orgMap[uid])      return { uid, name: orgMap[uid],      role: 'organizer' };
-        return { uid, name: 'Fan', role: 'fan' };
+        return { uid, name: fanMap[uid] || 'Fan', role: 'fan' };
       });
       setFollowersList(resolved);
     } catch { /* ignore */ }
@@ -2087,11 +2100,29 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
 
       <div className="glass-card p-8 rounded-[2.5rem] border-slate-800 bg-gradient-to-br from-red-600/10 to-transparent relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-600/10 blur-[100px] rounded-full" />
-        <div className="relative z-10">
-          <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-2">
-            Welcome Back, <span className="text-amber-500">{firstName}</span>
-          </h2>
-          <p className="text-slate-400 font-medium max-w-lg">{WELCOME_SUBTITLES[role]}</p>
+        <div className="relative z-10 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-2">
+              Welcome Back, <span className="text-amber-500">{firstName}</span>
+            </h2>
+            <p className="text-slate-400 font-medium max-w-lg">{WELCOME_SUBTITLES[role]}</p>
+          </div>
+          {navigateTo && role === 'comedian' && comedianDocId && (
+            <button
+              onClick={() => navigateTo(PageType.COMEDIAN_PROFILE, comedianDocId)}
+              className="shrink-0 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black uppercase italic tracking-widest text-slate-300 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-400 transition-all"
+            >
+              View Profile →
+            </button>
+          )}
+          {navigateTo && role === 'organizer' && authUser && (
+            <button
+              onClick={() => navigateTo(PageType.ORGANIZER_PROFILE, authUser.uid)}
+              className="shrink-0 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black uppercase italic tracking-widest text-slate-300 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-400 transition-all"
+            >
+              View Profile →
+            </button>
+          )}
         </div>
       </div>
 
@@ -2351,6 +2382,22 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
                         f.role === 'organizer' ? 'border-amber-500/20 bg-amber-500/10 text-amber-400' :
                                                  'border-slate-700 bg-slate-800 text-slate-400'
                       }`}>{f.role}</span>
+                      {navigateTo && f.role === 'comedian' && (
+                        <button
+                          onClick={() => { setFollowersOpen(false); navigateTo(PageType.COMEDIAN_PROFILE, f.uid); }}
+                          className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-amber-400 transition-colors shrink-0"
+                        >
+                          View →
+                        </button>
+                      )}
+                      {navigateTo && f.role === 'organizer' && (
+                        <button
+                          onClick={() => { setFollowersOpen(false); navigateTo(PageType.ORGANIZER_PROFILE, f.uid); }}
+                          className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-amber-400 transition-colors shrink-0"
+                        >
+                          View →
+                        </button>
+                      )}
                     </div>
                   ))
                 )}

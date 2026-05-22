@@ -20,6 +20,8 @@ import { OrganizerManagementCenter } from './components/OrganizerManagementCente
 import { UserDashboard } from './components/UserDashboard';
 import { PostSpotModal } from './components/PostSpotModal';
 import { AuthPage } from './components/AuthPage';
+import { ComedianProfile } from './components/ComedianProfile';
+import { OrganizerProfile } from './components/OrganizerProfile';
 import { PageType, UserRole } from './types';
 import { Home as HomeIcon, User, Trophy, Briefcase, MapPin, MailCheck, Loader2 } from 'lucide-react';
 
@@ -187,7 +189,7 @@ function App() {
       case PageType.CONTACT:
         return <ContactPage />;
       case PageType.LEADERBOARDS:
-        return <Leaderboards />;
+        return <Leaderboards navigateTo={navigateTo} />;
       case PageType.OPPORTUNITIES:
         return <OpportunityBoard role={userRole} onPostSpot={() => setIsPostModalOpen(true)} />;
       case PageType.SCENES:
@@ -205,7 +207,11 @@ function App() {
       case PageType.ORGANIZER_MANAGEMENT_CENTER:
         return <OrganizerManagementCenter />;
       case PageType.DASHBOARD:
-        return <UserDashboard role={userRole} authUser={authUser} initialTab={initialTab} />;
+        return <UserDashboard role={userRole} authUser={authUser} initialTab={initialTab} navigateTo={navigateTo} />;
+      case PageType.COMEDIAN_PROFILE:
+        return <ComedianProfile docId={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} />;
+      case PageType.ORGANIZER_PROFILE:
+        return <OrganizerProfile uid={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} />;
       default:
         return <Home navigateTo={navigateTo} onPostSpot={() => setIsPostModalOpen(true)} />;
     }

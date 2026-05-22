@@ -14,7 +14,9 @@ export enum PageType {
   FAN_GETTING_STARTED = 'fan_getting_started',
   REVENUE_TICKETING = 'revenue_ticketing',
   DIGITAL_ENGAGEMENT = 'digital_engagement',
-  ORGANIZER_MANAGEMENT_CENTER = 'organizer_management_center'
+  ORGANIZER_MANAGEMENT_CENTER = 'organizer_management_center',
+  COMEDIAN_PROFILE = 'comedian-profile',
+  ORGANIZER_PROFILE = 'organizer-profile',
 }
 
 export type UserRole = 'fan' | 'comedian' | 'venue' | 'organizer';
