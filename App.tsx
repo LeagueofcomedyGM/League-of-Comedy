@@ -211,7 +211,7 @@ function App() {
       case PageType.COMEDIAN_PROFILE:
         return <ComedianProfile docId={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} />;
       case PageType.ORGANIZER_PROFILE:
-        return <OrganizerProfile uid={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} />;
+        return <OrganizerProfile uid={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} userRole={userRole} />;
       default:
         return <Home navigateTo={navigateTo} onPostSpot={() => setIsPostModalOpen(true)} />;
     }

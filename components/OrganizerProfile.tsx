@@ -6,7 +6,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PageType } from '../types';
-import { MapPin, Users, Briefcase, Loader2, Building2, ArrowLeft } from 'lucide-react';
+import { MapPin, Users, Briefcase, Loader2, Building2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ApplyModal, ApplyGig } from './ApplyModal';
 
 interface OrganizerData {
   uid:           string;
@@ -36,13 +37,16 @@ export const OrganizerProfile: React.FC<{
   uid:        string;
   navigateTo: (page: PageType, tab?: string) => void;
   authUser:   FirebaseUser | null;
-}> = ({ uid, navigateTo, authUser }) => {
+  userRole?:  string;
+}> = ({ uid, navigateTo, authUser, userRole }) => {
   const [loading,       setLoading]       = useState(true);
   const [profile,       setProfile]       = useState<OrganizerData | null>(null);
   const [activeGigs,    setActiveGigs]    = useState<ActiveGig[]>([]);
   const [isFollowing,   setIsFollowing]   = useState(false);
   const [followCount,   setFollowCount]   = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
+  const [appliedGigIds, setAppliedGigIds] = useState<Set<string>>(new Set());
+  const [applyingToGig, setApplyingToGig] = useState<ApplyGig | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -72,7 +76,7 @@ export const OrganizerProfile: React.FC<{
         const gigsSnap = await getDocs(
           query(collection(db, 'gigs'), where('posted_by_uid', '==', uid), where('status', '==', 'published'))
         );
-        setActiveGigs(gigsSnap.docs.map(d => {
+        const gigDocs = gigsSnap.docs.map(d => {
           const g = d.data();
           return {
             id:       d.id,
@@ -83,7 +87,19 @@ export const OrganizerProfile: React.FC<{
             state:    g.state    ?? '',
             date:     g.date     ?? '',
           };
-        }));
+        });
+        setActiveGigs(gigDocs);
+
+        if (authUser && userRole === 'comedian' && gigDocs.length > 0) {
+          const gigIds = gigDocs.map(g => g.id);
+          const appsSnap = await getDocs(
+            query(collection(db, 'applications'),
+              where('comedian_uid', '==', authUser.uid),
+              where('gig_id', 'in', gigIds.slice(0, 30))
+            )
+          );
+          setAppliedGigIds(new Set(appsSnap.docs.map(d => d.data().gig_id as string)));
+        }
 
         if (authUser) {
           const userSnap = await getDoc(doc(db, 'users', authUser.uid));
@@ -140,6 +156,7 @@ export const OrganizerProfile: React.FC<{
   const hasPrefs  = profile.bookingStyles.length > 0 || profile.bookingVibes.length > 0 || profile.bookingLevels.length > 0 || profile.showTypes.length > 0;
 
   return (
+    <>
     <div className="min-h-screen pb-24 lg:pb-8">
 
       {/* Back */}
@@ -219,34 +236,54 @@ export const OrganizerProfile: React.FC<{
             <div className="glass-card p-6 rounded-[2rem] border-slate-800">
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Open Gigs</h2>
               <div className="space-y-3">
-                {activeGigs.map(gig => (
-                  <button
-                    key={gig.id}
-                    onClick={() => navigateTo(PageType.OPPORTUNITIES)}
-                    className="w-full text-left p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/30 hover:bg-slate-900 transition-all group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-black italic uppercase tracking-tight text-white group-hover:text-amber-400 transition-colors truncate">{gig.title}</h3>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {gig.category && <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{gig.category}</span>}
-                          {gig.payRange  && <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">{gig.payRange}</span>}
-                          {[gig.city, gig.state].filter(Boolean).join(', ') && (
-                            <span className="text-[9px] font-bold text-slate-500 flex items-center gap-0.5">
-                              <MapPin className="w-2.5 h-2.5" />{[gig.city, gig.state].filter(Boolean).join(', ')}
+                {activeGigs.map(gig => {
+                  const alreadyApplied = appliedGigIds.has(gig.id);
+                  const canApply = userRole === 'comedian' && authUser && authUser.uid !== uid;
+                  return (
+                    <div
+                      key={gig.id}
+                      className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/30 hover:bg-slate-900 transition-all group"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-black italic uppercase tracking-tight text-white group-hover:text-amber-400 transition-colors truncate">{gig.title}</h3>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {gig.category && <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{gig.category}</span>}
+                            {gig.payRange  && <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">{gig.payRange}</span>}
+                            {[gig.city, gig.state].filter(Boolean).join(', ') && (
+                              <span className="text-[9px] font-bold text-slate-500 flex items-center gap-0.5">
+                                <MapPin className="w-2.5 h-2.5" />{[gig.city, gig.state].filter(Boolean).join(', ')}
+                              </span>
+                            )}
+                            {gig.date && (
+                              <span className="text-[9px] font-bold text-slate-500">
+                                {new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Briefcase className="w-4 h-4 text-slate-600 group-hover:text-amber-500 transition-colors shrink-0 mt-0.5" />
+                      </div>
+
+                      {canApply && (
+                        <div className="mt-3 pt-3 border-t border-slate-800 flex justify-end">
+                          {alreadyApplied ? (
+                            <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                              <CheckCircle2 className="w-3 h-3" /> Applied
                             </span>
-                          )}
-                          {gig.date && (
-                            <span className="text-[9px] font-bold text-slate-500">
-                              {new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setApplyingToGig({ id: gig.id, title: gig.title, category: gig.category, pay_range: gig.payRange, city: gig.city, state: gig.state })}
+                              className="px-4 py-1.5 rounded-lg bg-brand-gradient text-white text-[9px] font-black uppercase italic tracking-widest hover:opacity-90 transition-all shadow-lg shadow-orange-900/20 active:scale-95"
+                            >
+                              Apply Now
+                            </button>
                           )}
                         </div>
-                      </div>
-                      <Briefcase className="w-4 h-4 text-slate-600 group-hover:text-amber-500 transition-colors shrink-0 mt-0.5" />
+                      )}
                     </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -300,5 +337,15 @@ export const OrganizerProfile: React.FC<{
         )}
       </div>
     </div>
+
+    {applyingToGig && (
+      <ApplyModal
+        gig={applyingToGig}
+        authUser={authUser}
+        onClose={() => setApplyingToGig(null)}
+        onSuccess={gigId => { setAppliedGigIds(prev => new Set(prev).add(gigId)); setApplyingToGig(null); }}
+      />
+    )}
+  </>
   );
 };
