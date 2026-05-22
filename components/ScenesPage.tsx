@@ -456,36 +456,39 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                   {comedian.level && (
                     <p className="text-[9px] font-black uppercase tracking-widest text-[#0a0e1a]/50 mt-0.5">{comedian.level}</p>
                   )}
-                  <div className="flex items-center justify-between mt-2 md:mt-auto">
-                    <div className="flex items-center gap-2">
-                      {comedian.instagram && (
-                        <button
-                          onClick={e => { e.stopPropagation(); window.open(comedian.instagram, '_blank'); }}
-                          className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
-                          style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
-                        >
-                          <Instagram className="w-3 h-3 md:w-4 md:h-4" />
-                        </button>
-                      )}
-                      {comedian.xLink && (
-                        <button onClick={e => { e.stopPropagation(); window.open(comedian.xLink, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                        </button>
-                      )}
-                      {comedian.youtube && (
-                        <button onClick={e => { e.stopPropagation(); window.open(comedian.youtube, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
-                          <Youtube className="w-3 h-3 md:w-4 md:h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
+                  <div className="mt-2 md:mt-auto space-y-1.5">
+                    {/* View Profile row */}
+                    <div className="flex justify-end">
                       <button
                         onClick={e => { e.stopPropagation(); navigateTo(PageType.COMEDIAN_PROFILE, cid); }}
                         className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/70 hover:bg-black/20 transition-all"
                       >
                         View Profile
                       </button>
+                    </div>
+                    {/* Social icons + Follow row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {comedian.instagram && (
+                          <button
+                            onClick={e => { e.stopPropagation(); window.open(comedian.instagram, '_blank'); }}
+                            className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm"
+                            style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%)' }}
+                          >
+                            <Instagram className="w-3 h-3 md:w-4 md:h-4" />
+                          </button>
+                        )}
+                        {comedian.xLink && (
+                          <button onClick={e => { e.stopPropagation(); window.open(comedian.xLink, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-black flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                          </button>
+                        )}
+                        {comedian.youtube && (
+                          <button onClick={e => { e.stopPropagation(); window.open(comedian.youtube, '_blank'); }} className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#ff0000] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-sm">
+                            <Youtube className="w-3 h-3 md:w-4 md:h-4" />
+                          </button>
+                        )}
+                      </div>
                       {isOwnCard ? (
                         <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-black/10 text-[#0a0e1a]/40">
                           You
