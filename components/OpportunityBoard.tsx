@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { Search, Filter, Briefcase, Calendar, MapPin, DollarSign, Clock, Users, ArrowUpRight, Zap, CheckCircle2, Building, Mic2, Trophy, Star, Loader2 } from 'lucide-react';
+import { Search, Filter, Briefcase, Clock, ArrowUpRight, Zap, CheckCircle2, Building, Mic2, Trophy, Star, Loader2 } from 'lucide-react';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ApplyModal, ApplyGig } from './ApplyModal';
@@ -258,81 +258,88 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, authUs
                      ].filter(Boolean);
 
                      return (
-                       <div key={gig.id} className="glass-card p-6 rounded-2xl border-white/10 hover:border-white/20 hover:bg-[#131b2e]/40 transition-all group">
-                         <div className="flex flex-col md:flex-row justify-between gap-6">
-                           <div className="flex-grow">
-                             <div className="flex items-center gap-3 mb-2">
-                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${['Corporate', 'Private'].includes(gig.category) ? 'bg-[#f6a623] text-[#0a0e1a]' : 'bg-[#1e293b] text-[#8892a4]'}`}>
-                                 {gig.category}
-                               </span>
-                               {gig.posted_at && (
-                                 <span className="text-[10px] font-bold text-[#8892a4] flex items-center gap-1">
-                                   <Clock className="w-3 h-3" /> Posted {timeAgo(gig.posted_at)}
-                                 </span>
-                               )}
+                       <div key={gig.id} className="glass-card p-6 md:p-8 rounded-[2rem] border border-white/5 hover:border-white/20 transition-all group">
+                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                           {/* Left: icon + title + meta */}
+                           <div className="flex items-center gap-5 flex-1 min-w-0">
+                             <div className="w-14 h-14 bg-brand-gradient rounded-2xl flex items-center justify-center shrink-0">
+                               <Briefcase className="w-6 h-6 text-white" />
                              </div>
-                             <h3 className="text-2xl font-bold uppercase italic mb-2 group-hover:text-brand-gradient transition-colors text-white">{gig.title}</h3>
-
-                             {gig.public_brief && (
-                               <p className="text-xs text-[#8892a4] font-medium leading-relaxed mb-3 line-clamp-2">{gig.public_brief}</p>
-                             )}
-
-                             <div className="flex flex-wrap items-center gap-6 mt-2">
-                               {location && (
-                                 <div className="flex items-center gap-2 text-[#8892a4] text-xs font-bold">
-                                   <MapPin className="w-4 h-4 text-[#e53e3e]" />
-                                   {[gig.venue_name, location].filter(Boolean).join(' • ')}
-                                 </div>
-                               )}
-                               {gig.date && (
-                                 <div className="flex items-center gap-2 text-[#8892a4] text-xs font-bold">
-                                   <Calendar className="w-4 h-4 text-[#e53e3e]" />
-                                   {new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                   {gig.time && ` · ${new Date('1970-01-01T' + gig.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
-                                 </div>
-                               )}
-                               {gig.pay_range && (
-                                 <div className="flex items-center gap-2 text-[#48bb78] text-xs font-black uppercase italic tracking-widest">
-                                   <DollarSign className="w-4 h-4" /> {gig.pay_range}
-                                 </div>
+                             <div className="min-w-0">
+                               <div className="flex items-center gap-2 mb-1.5">
+                                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${['Corporate', 'Private'].includes(gig.category) ? 'bg-[#f6a623] text-[#0a0e1a]' : 'bg-[#1e293b] text-[#8892a4]'}`}>
+                                   {gig.category}
+                                 </span>
+                                 {gig.posted_at && (
+                                   <span className="text-[9px] font-bold text-[#8892a4] flex items-center gap-1">
+                                     <Clock className="w-3 h-3" /> {timeAgo(gig.posted_at)}
+                                   </span>
+                                 )}
+                               </div>
+                               <h3 className="text-xl font-black italic uppercase text-white tracking-tight leading-none mb-1.5">{gig.title}</h3>
+                               <p className="text-[11px] font-bold text-amber-500 uppercase tracking-widest">
+                                 {[
+                                   gig.venue_name,
+                                   location,
+                                   gig.date
+                                     ? new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+                                       (gig.time ? ` · ${new Date('1970-01-01T' + gig.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : '')
+                                     : '',
+                                 ].filter(Boolean).join(' · ')}
+                               </p>
+                               {gig.public_brief && (
+                                 <p className="text-[11px] text-[#8892a4] font-medium leading-relaxed mt-2 line-clamp-1">{gig.public_brief}</p>
                                )}
                              </div>
                            </div>
 
-                           <div className="flex flex-col sm:flex-row md:flex-col justify-between items-start sm:items-center md:items-end gap-4 min-w-[140px]">
-                             <div className="text-right">
-                               <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest">Spots</p>
-                               <p className="text-lg font-black text-white italic">{gig.spots - gig.spots_filled} / {gig.spots}</p>
+                           {/* Right: stats + apply button */}
+                           <div className="flex flex-row items-center gap-5 md:gap-8 shrink-0 flex-wrap">
+                             {gig.pay_range && (
+                               <div>
+                                 <p className="text-[9px] font-black text-[#8892a4] uppercase tracking-widest mb-1">Pay Rate</p>
+                                 <p className="text-sm font-black text-emerald-400 italic">{gig.pay_range}</p>
+                               </div>
+                             )}
+                             <div>
+                               <p className="text-[9px] font-black text-[#8892a4] uppercase tracking-widest mb-1">Spots</p>
+                               <p className="text-sm font-black text-white italic">{gig.spots - gig.spots_filled} / {gig.spots}</p>
                              </div>
+                             {gig.deadline && (
+                               <div>
+                                 <p className="text-[9px] font-black text-[#8892a4] uppercase tracking-widest mb-1">Deadline</p>
+                                 <p className="text-sm font-black text-[#e53e3e] italic">{gig.deadline}</p>
+                               </div>
+                             )}
                              {(() => {
                                const appStatus = gigAppStatuses[gig.id];
                                if (gig.posted_by_uid && gig.posted_by_uid === authUser?.uid) {
                                  return (
-                                   <span className="w-full sm:w-auto px-6 py-3 text-center text-[10px] font-black uppercase tracking-widest italic text-slate-500">
+                                   <span className="px-5 py-2.5 text-[9px] font-black uppercase tracking-widest italic text-slate-500">
                                      Your Gig
                                    </span>
                                  );
                                }
                                if (appStatus === 'declined') {
                                  return (
-                                   <button disabled className="w-full sm:w-auto bg-slate-800 text-slate-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 italic cursor-not-allowed border border-slate-700">
+                                   <button disabled className="bg-slate-800 text-slate-500 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 italic cursor-not-allowed border border-slate-700 whitespace-nowrap">
                                      Not Selected
                                    </button>
                                  );
                                }
                                if (appStatus === 'pending' || appStatus === 'accepted') {
                                  return (
-                                   <button disabled className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 italic opacity-80 cursor-not-allowed">
-                                     <CheckCircle2 className="w-4 h-4" /> Applied
+                                   <button disabled className="bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 italic cursor-not-allowed whitespace-nowrap">
+                                     <CheckCircle2 className="w-3.5 h-3.5" /> Applied
                                    </button>
                                  );
                                }
                                return (
                                  <button
                                    onClick={() => handleApply(gig)}
-                                   className="w-full sm:w-auto bg-brand-gradient hover:opacity-90 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-orange-900/20 active:scale-95 italic"
+                                   className="bg-brand-gradient hover:opacity-90 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-orange-900/20 active:scale-95 italic whitespace-nowrap"
                                  >
-                                   Apply Now <ArrowUpRight className="w-4 h-4" />
+                                   Apply Now <ArrowUpRight className="w-3.5 h-3.5" />
                                  </button>
                                );
                              })()}
@@ -340,7 +347,7 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, authUs
                          </div>
 
                          {tags.length > 0 && (
-                           <div className="mt-6 pt-6 border-t border-white/5 flex flex-wrap gap-2">
+                           <div className="mt-5 pt-5 border-t border-white/5 flex flex-wrap gap-2">
                              {tags.map(tag => (
                                <span key={tag} className="text-[9px] font-black uppercase tracking-widest text-[#8892a4] px-3 py-1 bg-[#0a0e1a] rounded-full border border-white/5">
                                  {tag}

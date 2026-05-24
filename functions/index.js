@@ -59,8 +59,8 @@ exports.handleUserSignup = functions.https.onCall(async (data, context) => {
 
   switch (userType) {
     case 'comedian':  return createOrClaimComedianProfile(uid, email);
-    case 'fan':       return createFanProfile(uid);
-    case 'organizer': return createOrganizerProfile(uid);
+    case 'fan':       return createFanProfile(uid, context);
+    case 'organizer': return createOrganizerProfile(uid, context);
   }
 });
 
@@ -153,13 +153,14 @@ async function createOrClaimComedianProfile(uid, email) {
   };
 }
 
-async function createFanProfile(uid) {
+async function createFanProfile(uid, context) {
   const now = admin.firestore.FieldValue.serverTimestamp();
+  const displayName = context.auth.token.name ?? '';
 
   await db.collection('users').doc(uid).set({
     uid:            uid,
     user_type:      'fan',
-    display_name:   '',
+    display_name:   displayName,
     location:       '',
     comedy_styles:  [],
     comedy_vibes:   [],
@@ -171,13 +172,14 @@ async function createFanProfile(uid) {
   return { status: 'created', userType: 'fan', docId: uid };
 }
 
-async function createOrganizerProfile(uid) {
+async function createOrganizerProfile(uid, context) {
   const now = admin.firestore.FieldValue.serverTimestamp();
+  const displayName = context.auth.token.name ?? '';
 
   await db.collection('users').doc(uid).set({
     uid:           uid,
     user_type:     'organizer',
-    display_name:  '',
+    display_name:  displayName,
     location:      '',
     comedy_styles: [],
     comedy_vibes:  [],
@@ -187,7 +189,7 @@ async function createOrganizerProfile(uid) {
 
   await db.collection('organizers').doc(uid).set({
     uid:                       uid,
-    display_name:              '',
+    display_name:              displayName,
     contact_email:             '',
     phone:                     '',
     city:                      '',
