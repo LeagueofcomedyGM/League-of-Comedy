@@ -47,6 +47,18 @@ interface RosterComedian {
   youtube:   string;
 }
 
+interface SceneGig {
+  id:           string;
+  title:        string;
+  venue_name:   string;
+  city:         string;
+  state:        string;
+  pay_range:    string;
+  deadline:     string;
+  spots:        number;
+  spots_filled: number;
+}
+
 interface RosterOrganizer {
   docId:   string;
   name:    string;
@@ -80,6 +92,8 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const [followingOrganizers,   setFollowingOrganizers]   = useState<Set<string>>(new Set());
   const [followingOrganizerId,  setFollowingOrganizerId]  = useState<string | null>(null);
   const [hoverOrganizerId,      setHoverOrganizerId]      = useState<string | null>(null);
+  const [sceneGigs,             setSceneGigs]             = useState<SceneGig[]>([]);
+  const [loadingSceneGigs,      setLoadingSceneGigs]      = useState(true);
 
   const sceneSlug = initialTab ?? 'los-angeles';
 
@@ -156,6 +170,43 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
       setLoadingOrganizers(false);
     }
     loadOrganizers();
+  }, [sceneSlug]);
+
+  useEffect(() => {
+    setSceneGigs([]);
+    setLoadingSceneGigs(true);
+
+    const cityName = sceneSlug
+      .split('-')
+      .map(w => w[0].toUpperCase() + w.slice(1))
+      .join(' ');
+
+    async function loadSceneGigs() {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'gigs'), where('status', '==', 'published'))
+        );
+        const gigs: SceneGig[] = snap.docs
+          .map(d => {
+            const data = d.data();
+            return {
+              id:           d.id,
+              title:        data.title        ?? '',
+              venue_name:   data.venue_name   ?? '',
+              city:         data.city         ?? '',
+              state:        data.state        ?? '',
+              pay_range:    data.pay_range    ?? '',
+              deadline:     data.deadline     ?? '',
+              spots:        data.spots        ?? 1,
+              spots_filled: data.spots_filled ?? 0,
+            };
+          })
+          .filter(g => g.title.trim() !== '' && g.city.toLowerCase() === cityName.toLowerCase());
+        setSceneGigs(gigs);
+      } catch { /* ignore */ }
+      setLoadingSceneGigs(false);
+    }
+    loadSceneGigs();
   }, [sceneSlug]);
 
   useEffect(() => {
@@ -241,11 +292,6 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     { id: 3, name: "Marcus Vibe", location: "Los Angeles, CA", level: "INTERMEDIATE", points: 8900, rank: 4, followers: "12k", styles: ["Storytelling"], isVerified: true, tier: 'pro' },
   ];
 
-  const mockGigs = [
-    { id: 1, title: "After Dinner Speaker", venue: "Goldman Sachs", location: "Los Angeles, CA", deadline: "Dec 15", pay: "$2,500" },
-    { id: 2, title: "Corporate Roast", venue: "Tech Innovations Inc", location: "Santa Monica, CA", deadline: "Jan 10", pay: "$1,800" },
-    { id: 3, title: "Private Birthday Party", venue: "Private Residence", location: "Beverly Hills, CA", deadline: "Feb 14", pay: "$1,200" },
-  ];
 
   const mockClips = [
     { id: 1, comedian: "Julius Carr", title: "Living in LA be like...", thumbnail: "https://picsum.photos/seed/clip1/400/225" },
@@ -626,36 +672,68 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     );
   };
 
-  const renderGigs = () => (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {mockGigs.map(gig => (
-        <div key={gig.id} className="glass-card p-6 md:p-8 rounded-[2rem] border border-white/5 hover:border-white/20 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-6">
-            <div className="w-14 h-14 bg-brand-gradient rounded-2xl flex items-center justify-center shrink-0">
-              <Briefcase className="w-6 h-6 text-white" />
+  const renderGigs = () => {
+    if (loadingSceneGigs) return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-amber-500 opacity-60" />
+      </div>
+    );
+
+    if (sceneGigs.length === 0) return (
+      <div className="flex flex-col items-center justify-center py-20 text-[#8892a4] gap-3">
+        <Briefcase className="w-10 h-10 opacity-20" />
+        <p className="text-[10px] font-bold uppercase tracking-widest">No gigs in this scene yet</p>
+        <p className="text-[11px] font-medium opacity-60">Gigs posted in {sceneName} will appear here.</p>
+      </div>
+    );
+
+    return (
+      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {sceneGigs.map(gig => {
+          const location = [gig.city, gig.state].filter(Boolean).join(', ');
+          return (
+            <div key={gig.id} className="glass-card p-6 md:p-8 rounded-[2rem] border border-white/5 hover:border-white/20 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-center gap-6">
+                <div className="w-14 h-14 bg-brand-gradient rounded-2xl flex items-center justify-center shrink-0">
+                  <Briefcase className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h4 className="text-xl font-black italic uppercase text-white tracking-tight leading-none mb-2">{gig.title}</h4>
+                  <p className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
+                    <Users className="w-3 h-3" /> {[gig.venue_name, location].filter(Boolean).join(' • ')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-row items-center gap-8 md:gap-12 flex-wrap">
+                {gig.pay_range && (
+                  <div className="text-left">
+                    <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">PAY RATE</p>
+                    <p className="text-lg font-black text-white italic uppercase">{gig.pay_range}</p>
+                  </div>
+                )}
+                {gig.deadline && (
+                  <div className="text-left">
+                    <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">DEADLINE</p>
+                    <p className="text-lg font-black text-[#e53e3e] italic uppercase">{gig.deadline}</p>
+                  </div>
+                )}
+                <div className="text-left">
+                  <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">SPOTS</p>
+                  <p className="text-lg font-black text-white italic uppercase">{gig.spots - gig.spots_filled} / {gig.spots}</p>
+                </div>
+                <button
+                  onClick={() => navigateTo(PageType.OPPORTUNITIES)}
+                  className="bg-[#131b2e] border-2 border-white/5 hover:bg-[#1e293b] hover:text-white text-[#8892a4] px-6 py-3 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all whitespace-nowrap"
+                >
+                  VIEW GIG
+                </button>
+              </div>
             </div>
-            <div>
-              <h4 className="text-xl font-black italic uppercase text-white tracking-tight leading-none mb-2">{gig.title}</h4>
-              <p className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-                <Users className="w-3 h-3" /> {gig.venue} • {gig.location}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-row md:flex-row items-center gap-8 md:gap-12">
-            <div className="text-right md:text-left flex-1 md:flex-none">
-              <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">PAY RATE</p>
-              <p className="text-lg font-black text-white italic uppercase">{gig.pay}</p>
-            </div>
-            <div className="text-right md:text-left flex-1 md:flex-none">
-              <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">DEADLINE</p>
-              <p className="text-lg font-black text-[#e53e3e] italic uppercase">{gig.deadline}</p>
-            </div>
-            <button className="bg-[#131b2e] border-2 border-white/5 hover:bg-[#1e293b] hover:text-white text-[#8892a4] px-6 py-3 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all">VIEW GIG</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderClips = () => (
     <div className="animate-in fade-in duration-500">
