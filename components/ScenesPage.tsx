@@ -3,7 +3,7 @@ import { User as FirebaseUser } from 'firebase/auth';
 import {
   doc, getDoc, updateDoc, setDoc,
   collection, query, where, getDocs,
-  arrayUnion, arrayRemove, increment,
+  arrayUnion, arrayRemove, increment, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -14,6 +14,7 @@ import {
   Shield,
   LayoutDashboard,
   Calendar,
+  Clock,
   Video,
   Bell,
   MessageSquare,
@@ -48,15 +49,23 @@ interface RosterComedian {
 }
 
 interface SceneGig {
-  id:           string;
-  title:        string;
-  venue_name:   string;
-  city:         string;
-  state:        string;
-  pay_range:    string;
-  deadline:     string;
-  spots:        number;
-  spots_filled: number;
+  id:               string;
+  title:            string;
+  category:         string;
+  venue_name:       string;
+  city:             string;
+  state:            string;
+  date:             string;
+  time:             string;
+  pay_range:        string;
+  deadline:         string;
+  spots:            number;
+  spots_filled:     number;
+  public_brief:     string;
+  experience_level: string;
+  styles:           string[];
+  vibes:            string[];
+  posted_at:        Timestamp | null;
 }
 
 interface RosterOrganizer {
@@ -66,6 +75,15 @@ interface RosterOrganizer {
   state:   string;
   bio:     string;
   roles:   string[];
+}
+
+function timeAgo(ts: Timestamp | null): string {
+  if (!ts) return '';
+  const seconds = Math.floor((Date.now() - ts.toMillis()) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 interface ScenesPageProps {
@@ -190,15 +208,23 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
           .map(d => {
             const data = d.data();
             return {
-              id:           d.id,
-              title:        data.title        ?? '',
-              venue_name:   data.venue_name   ?? '',
-              city:         data.city         ?? '',
-              state:        data.state        ?? '',
-              pay_range:    data.pay_range    ?? '',
-              deadline:     data.deadline     ?? '',
-              spots:        data.spots        ?? 1,
-              spots_filled: data.spots_filled ?? 0,
+              id:               d.id,
+              title:            data.title            ?? '',
+              category:         data.category         ?? '',
+              venue_name:       data.venue_name        ?? '',
+              city:             data.city              ?? '',
+              state:            data.state             ?? '',
+              date:             data.date              ?? '',
+              time:             data.time              ?? '',
+              pay_range:        data.pay_range         ?? '',
+              deadline:         data.deadline          ?? '',
+              spots:            data.spots             ?? 1,
+              spots_filled:     data.spots_filled      ?? 0,
+              public_brief:     data.public_brief      ?? '',
+              experience_level: data.experience_level  ?? '',
+              styles:           data.styles            ?? [],
+              vibes:            data.vibes             ?? [],
+              posted_at:        data.posted_at         ?? null,
             };
           })
           .filter(g => g.title.trim() !== '' && g.city.toLowerCase() === cityName.toLowerCase());
@@ -691,43 +717,81 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {sceneGigs.map(gig => {
           const location = [gig.city, gig.state].filter(Boolean).join(', ');
+          const tags = [gig.experience_level, ...gig.styles, ...gig.vibes].filter(Boolean);
           return (
-            <div key={gig.id} className="glass-card p-6 md:p-8 rounded-[2rem] border border-white/5 hover:border-white/20 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="flex items-center gap-6">
-                <div className="w-14 h-14 bg-brand-gradient rounded-2xl flex items-center justify-center shrink-0">
-                  <Briefcase className="w-6 h-6 text-white" />
+            <div key={gig.id} className="glass-card p-6 md:p-8 rounded-[2rem] border border-white/5 hover:border-white/20 transition-all group">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                {/* Left: icon + title + meta */}
+                <div className="flex items-center gap-5 flex-1 min-w-0">
+                  <div className="w-14 h-14 bg-brand-gradient rounded-2xl flex items-center justify-center shrink-0">
+                    <Briefcase className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {gig.category && (
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${['Corporate', 'Private'].includes(gig.category) ? 'bg-[#f6a623] text-[#0a0e1a]' : 'bg-[#1e293b] text-[#8892a4]'}`}>
+                          {gig.category}
+                        </span>
+                      )}
+                      {gig.posted_at && (
+                        <span className="text-[9px] font-bold text-[#8892a4] flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {timeAgo(gig.posted_at)}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-xl font-black italic uppercase text-white tracking-tight leading-none mb-1.5">{gig.title}</h4>
+                    <p className="text-[11px] font-bold text-amber-500 uppercase tracking-widest">
+                      {[
+                        gig.venue_name,
+                        location,
+                        gig.date
+                          ? new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+                            (gig.time ? ` · ${new Date('1970-01-01T' + gig.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : '')
+                          : '',
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                    {gig.public_brief && (
+                      <p className="text-[11px] text-[#8892a4] font-medium leading-relaxed mt-2 line-clamp-1">{gig.public_brief}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xl font-black italic uppercase text-white tracking-tight leading-none mb-2">{gig.title}</h4>
-                  <p className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-                    <Users className="w-3 h-3" /> {[gig.venue_name, location].filter(Boolean).join(' • ')}
-                  </p>
+
+                {/* Right: stats + view button */}
+                <div className="flex flex-row items-center gap-5 md:gap-8 shrink-0 flex-wrap">
+                  {gig.pay_range && (
+                    <div>
+                      <p className="text-[9px] font-black text-[#8892a4] uppercase tracking-widest mb-1">Pay Rate</p>
+                      <p className="text-sm font-black text-emerald-400 italic">{gig.pay_range}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[9px] font-black text-[#8892a4] uppercase tracking-widest mb-1">Spots</p>
+                    <p className="text-sm font-black text-white italic">{gig.spots - gig.spots_filled} / {gig.spots}</p>
+                  </div>
+                  {gig.deadline && (
+                    <div>
+                      <p className="text-[9px] font-black text-[#8892a4] uppercase tracking-widest mb-1">Deadline</p>
+                      <p className="text-sm font-black text-[#e53e3e] italic">{gig.deadline}</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => navigateTo(PageType.OPPORTUNITIES)}
+                    className="bg-brand-gradient hover:opacity-90 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-orange-900/20 active:scale-95 italic whitespace-nowrap"
+                  >
+                    View Gig <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-row items-center gap-8 md:gap-12 flex-wrap">
-                {gig.pay_range && (
-                  <div className="text-left">
-                    <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">PAY RATE</p>
-                    <p className="text-lg font-black text-white italic uppercase">{gig.pay_range}</p>
-                  </div>
-                )}
-                {gig.deadline && (
-                  <div className="text-left">
-                    <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">DEADLINE</p>
-                    <p className="text-lg font-black text-[#e53e3e] italic uppercase">{gig.deadline}</p>
-                  </div>
-                )}
-                <div className="text-left">
-                  <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest mb-1">SPOTS</p>
-                  <p className="text-lg font-black text-white italic uppercase">{gig.spots - gig.spots_filled} / {gig.spots}</p>
+
+              {tags.length > 0 && (
+                <div className="mt-5 pt-5 border-t border-white/5 flex flex-wrap gap-2">
+                  {tags.map(tag => (
+                    <span key={tag} className="text-[9px] font-black uppercase tracking-widest text-[#8892a4] px-3 py-1 bg-[#0a0e1a] rounded-full border border-white/5">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
-                <button
-                  onClick={() => navigateTo(PageType.OPPORTUNITIES)}
-                  className="bg-[#131b2e] border-2 border-white/5 hover:bg-[#1e293b] hover:text-white text-[#8892a4] px-6 py-3 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all whitespace-nowrap"
-                >
-                  VIEW GIG
-                </button>
-              </div>
+              )}
             </div>
           );
         })}
