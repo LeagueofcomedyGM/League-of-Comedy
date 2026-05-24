@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
+import { ApplyModal, ApplyGig } from './ApplyModal';
 import {
   doc, getDoc, updateDoc, setDoc,
   collection, query, where, getDocs,
@@ -19,6 +20,7 @@ import {
   Bell,
   MessageSquare,
   Briefcase,
+  CheckCircle2,
   MapPin,
   ChevronRight,
   ChevronDown,
@@ -66,6 +68,7 @@ interface SceneGig {
   styles:           string[];
   vibes:            string[];
   posted_at:        Timestamp | null;
+  posted_by_uid:    string;
 }
 
 interface RosterOrganizer {
@@ -90,9 +93,10 @@ interface ScenesPageProps {
   navigateTo: (page: PageType, tab?: string) => void;
   initialTab?: string | null;
   authUser?: FirebaseUser | null;
+  userRole?: string;
 }
 
-export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, authUser }) => {
+export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, authUser, userRole }) => {
   const [activeTab, setActiveTab] = useState('SHOWS');
   const [isFollowed,          setIsFollowed]          = useState(false);
   const [followerCount,       setFollowerCount]       = useState(0);
@@ -112,6 +116,8 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   const [hoverOrganizerId,      setHoverOrganizerId]      = useState<string | null>(null);
   const [sceneGigs,             setSceneGigs]             = useState<SceneGig[]>([]);
   const [loadingSceneGigs,      setLoadingSceneGigs]      = useState(true);
+  const [gigAppStatuses,        setGigAppStatuses]        = useState<Record<string, string>>({});
+  const [applyingToGig,         setApplyingToGig]         = useState<ApplyGig | null>(null);
 
   const sceneSlug = initialTab ?? 'los-angeles';
 
@@ -193,6 +199,7 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   useEffect(() => {
     setSceneGigs([]);
     setLoadingSceneGigs(true);
+    setGigAppStatuses({});
 
     const cityName = sceneSlug
       .split('-')
@@ -201,9 +208,26 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
 
     async function loadSceneGigs() {
       try {
-        const snap = await getDocs(
-          query(collection(db, 'gigs'), where('status', '==', 'published'))
-        );
+        const uid = authUser?.uid;
+        const [snap, appsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'gigs'), where('status', '==', 'published'))),
+          uid
+            ? getDocs(query(collection(db, 'applications'), where('comedian_uid', '==', uid)))
+            : Promise.resolve(null),
+        ]);
+
+        if (appsSnap) {
+          const priority: Record<string, number> = { accepted: 3, pending: 2, declined: 1 };
+          const statuses: Record<string, string> = {};
+          appsSnap.docs.forEach(d => {
+            const { gig_id, status = 'pending' } = d.data();
+            if (!statuses[gig_id] || (priority[status] ?? 0) > (priority[statuses[gig_id]] ?? 0)) {
+              statuses[gig_id] = status;
+            }
+          });
+          setGigAppStatuses(statuses);
+        }
+
         const gigs: SceneGig[] = snap.docs
           .map(d => {
             const data = d.data();
@@ -225,6 +249,7 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
               styles:           data.styles            ?? [],
               vibes:            data.vibes             ?? [],
               posted_at:        data.posted_at         ?? null,
+              posted_by_uid:    data.posted_by_uid     ?? '',
             };
           })
           .filter(g => g.title.trim() !== '' && g.city.toLowerCase() === cityName.toLowerCase());
@@ -233,7 +258,7 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
       setLoadingSceneGigs(false);
     }
     loadSceneGigs();
-  }, [sceneSlug]);
+  }, [sceneSlug, authUser]);
 
   useEffect(() => {
     setIsFollowed(false);
@@ -774,12 +799,41 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
                       <p className="text-sm font-black text-[#e53e3e] italic">{gig.deadline}</p>
                     </div>
                   )}
-                  <button
-                    onClick={() => navigateTo(PageType.OPPORTUNITIES)}
-                    className="bg-brand-gradient hover:opacity-90 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-orange-900/20 active:scale-95 italic whitespace-nowrap"
-                  >
-                    View Gig <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const appStatus = gigAppStatuses[gig.id];
+                    if (gig.posted_by_uid && gig.posted_by_uid === authUser?.uid) {
+                      return (
+                        <span className="px-5 py-2.5 text-[9px] font-black uppercase tracking-widest italic text-slate-500">
+                          Your Gig
+                        </span>
+                      );
+                    }
+                    if (appStatus === 'declined') {
+                      return (
+                        <button disabled className="bg-slate-800 text-slate-500 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 italic cursor-not-allowed border border-slate-700 whitespace-nowrap">
+                          Not Selected
+                        </button>
+                      );
+                    }
+                    if (appStatus === 'pending' || appStatus === 'accepted') {
+                      return (
+                        <button disabled className="bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 italic cursor-not-allowed whitespace-nowrap">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Applied
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => {
+                          if (!authUser) { alert('Please sign in to apply for gigs.'); return; }
+                          setApplyingToGig({ id: gig.id, title: gig.title, category: gig.category, pay_range: gig.pay_range, city: gig.city, state: gig.state });
+                        }}
+                        className="bg-brand-gradient hover:opacity-90 text-white px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-orange-900/20 active:scale-95 italic whitespace-nowrap"
+                      >
+                        Apply Now <ArrowUpRight className="w-3.5 h-3.5" />
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -836,6 +890,7 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   );
 
   return (
+  <>
     <div className="min-h-screen bg-[#0a0e1a]">
       {/* Dynamic Header */}
       <div className="relative">
@@ -1100,5 +1155,15 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
         {activeTab === 'CLIPS'      && renderClips()}
       </div>
     </div>
+
+    {applyingToGig && (
+      <ApplyModal
+        gig={applyingToGig}
+        authUser={authUser ?? null}
+        onClose={() => setApplyingToGig(null)}
+        onSuccess={gigId => { setGigAppStatuses(prev => ({ ...prev, [gigId]: 'pending' })); setApplyingToGig(null); }}
+      />
+    )}
+  </>
   );
 };
