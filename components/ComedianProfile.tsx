@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
-  doc, getDoc, updateDoc, arrayUnion, arrayRemove, increment,
+  doc, getDoc, getDocs, updateDoc, arrayUnion, arrayRemove, increment,
+  collection, query, where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PageType } from '../types';
-import { MapPin, Users, Globe, Loader2, Mic2, ArrowLeft, DollarSign } from 'lucide-react';
+import { MapPin, Users, Globe, Loader2, Mic2, ArrowLeft, DollarSign, Briefcase, CheckCircle2 } from 'lucide-react';
+import { ApplyModal, ApplyGig } from './ApplyModal';
 
 function getEmbedUrl(url: string): string | null {
   try {
@@ -17,6 +19,16 @@ function getEmbedUrl(url: string): string | null {
     if (vimeo)   return `https://player.vimeo.com/video/${vimeo[1]}`;
     return null;
   } catch { return null; }
+}
+
+interface ActiveGig {
+  id:       string;
+  title:    string;
+  category: string;
+  payRange: string;
+  city:     string;
+  state:    string;
+  date:     string;
 }
 
 interface ComedianData {
@@ -110,12 +122,16 @@ export const ComedianProfile: React.FC<{
   docId:      string;
   navigateTo: (page: PageType, tab?: string) => void;
   authUser:   FirebaseUser | null;
-}> = ({ docId, navigateTo, authUser }) => {
-  const [loading,       setLoading]       = useState(true);
-  const [profile,       setProfile]       = useState<ComedianData | null>(null);
-  const [isFollowing,   setIsFollowing]   = useState(false);
-  const [followCount,   setFollowCount]   = useState(0);
-  const [followLoading, setFollowLoading] = useState(false);
+  userRole?:  string;
+}> = ({ docId, navigateTo, authUser, userRole }) => {
+  const [loading,        setLoading]        = useState(true);
+  const [profile,        setProfile]        = useState<ComedianData | null>(null);
+  const [activeGigs,     setActiveGigs]     = useState<ActiveGig[]>([]);
+  const [gigAppStatuses, setGigAppStatuses] = useState<Record<string, string>>({});
+  const [applyingToGig,  setApplyingToGig]  = useState<ApplyGig | null>(null);
+  const [isFollowing,    setIsFollowing]    = useState(false);
+  const [followCount,    setFollowCount]    = useState(0);
+  const [followLoading,  setFollowLoading]  = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -151,6 +167,42 @@ export const ComedianProfile: React.FC<{
           imdb:      d.imdb_link         ?? '',
           followers,
         });
+        const comedianUid = d.uid ?? snap.id;
+        const gigsSnap = await getDocs(
+          query(collection(db, 'gigs'), where('posted_by_uid', '==', comedianUid), where('status', '==', 'published'))
+        );
+        const gigDocs = gigsSnap.docs.map(g => {
+          const gd = g.data();
+          return {
+            id:       g.id,
+            title:    gd.title    ?? '',
+            category: gd.category ?? '',
+            payRange: gd.pay_range ?? '',
+            city:     gd.city     ?? '',
+            state:    gd.state    ?? '',
+            date:     gd.date     ?? '',
+          };
+        });
+        setActiveGigs(gigDocs);
+
+        if (authUser && userRole === 'comedian' && gigDocs.length > 0) {
+          const gigIds = gigDocs.map(g => g.id);
+          const appsSnap = await getDocs(query(
+            collection(db, 'applications'),
+            where('comedian_uid', '==', authUser.uid),
+            where('gig_id', 'in', gigIds.slice(0, 30))
+          ));
+          const priority: Record<string, number> = { accepted: 3, pending: 2, declined: 1 };
+          const statuses: Record<string, string> = {};
+          appsSnap.docs.forEach(d => {
+            const { gig_id, status = 'pending' } = d.data();
+            if (!statuses[gig_id] || (priority[status] ?? 0) > (priority[statuses[gig_id]] ?? 0)) {
+              statuses[gig_id] = status;
+            }
+          });
+          setGigAppStatuses(statuses);
+        }
+
         if (authUser) {
           const userSnap = await getDoc(doc(db, 'users', authUser.uid));
           const following: string[] = userSnap.data()?.following_comedians ?? [];
@@ -224,6 +276,7 @@ export const ComedianProfile: React.FC<{
   };
 
   return (
+    <>
     <div className="min-h-screen pb-24 lg:pb-8">
 
       {/* Back */}
@@ -534,6 +587,63 @@ export const ComedianProfile: React.FC<{
               )}
             </div>
           )}
+
+          {activeGigs.length > 0 && (
+            <div className="glass-card p-6 rounded-[2rem] border-slate-800">
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Open Gigs</h2>
+              <div className="space-y-3">
+                {activeGigs.map(gig => {
+                  const appStatus = gigAppStatuses[gig.id];
+                  const canApply  = userRole === 'comedian' && authUser && authUser.uid !== profile!.uid;
+                  return (
+                    <div key={gig.id} className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/30 hover:bg-slate-900 transition-all group">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-black italic uppercase tracking-tight text-white group-hover:text-amber-400 transition-colors truncate">{gig.title}</h3>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {gig.category && <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{gig.category}</span>}
+                            {gig.payRange  && <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">{gig.payRange}</span>}
+                            {[gig.city, gig.state].filter(Boolean).join(', ') && (
+                              <span className="text-[9px] font-bold text-slate-500 flex items-center gap-0.5">
+                                <MapPin className="w-2.5 h-2.5" />{[gig.city, gig.state].filter(Boolean).join(', ')}
+                              </span>
+                            )}
+                            {gig.date && (
+                              <span className="text-[9px] font-bold text-slate-500">
+                                {new Date(gig.date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Briefcase className="w-4 h-4 text-slate-600 group-hover:text-amber-500 transition-colors shrink-0 mt-0.5" />
+                      </div>
+
+                      {canApply && (
+                        <div className="mt-3 pt-3 border-t border-slate-800 flex justify-end">
+                          {appStatus === 'declined' ? (
+                            <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-500 bg-slate-800 border border-slate-700">
+                              Not Selected
+                            </span>
+                          ) : appStatus === 'pending' || appStatus === 'accepted' ? (
+                            <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                              <CheckCircle2 className="w-3 h-3" /> Applied
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setApplyingToGig({ id: gig.id, title: gig.title, category: gig.category, pay_range: gig.payRange, city: gig.city, state: gig.state })}
+                              className="px-4 py-1.5 rounded-lg bg-brand-gradient text-white text-[9px] font-black uppercase italic tracking-widest hover:opacity-90 transition-all shadow-lg shadow-orange-900/20 active:scale-95"
+                            >
+                              Apply Now
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar: booking */}
@@ -580,5 +690,15 @@ export const ComedianProfile: React.FC<{
         )}
       </div>
     </div>
+
+    {applyingToGig && (
+      <ApplyModal
+        gig={applyingToGig}
+        authUser={authUser}
+        onClose={() => setApplyingToGig(null)}
+        onSuccess={gigId => { setGigAppStatuses(prev => ({ ...prev, [gigId]: 'pending' })); setApplyingToGig(null); }}
+      />
+    )}
+    </>
   );
 };

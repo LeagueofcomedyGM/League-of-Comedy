@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
+import { User as FirebaseUser } from 'firebase/auth';
 import { Search, Filter, Briefcase, Calendar, MapPin, DollarSign, Clock, Users, ArrowUpRight, Zap, CheckCircle2, Building, Mic2, Trophy, Star, Loader2 } from 'lucide-react';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { auth } from '../firebase';
 import { ApplyModal, ApplyGig } from './ApplyModal';
 
 interface OpportunityBoardProps {
   role: string;
+  authUser: FirebaseUser | null;
   onPostSpot?: () => void;
 }
 
@@ -30,6 +31,7 @@ interface Gig {
   styles:           string[];
   vibes:            string[];
   posted_at:        Timestamp | null;
+  posted_by_uid:    string;
 }
 
 function timeAgo(ts: Timestamp | null): string {
@@ -41,19 +43,19 @@ function timeAgo(ts: Timestamp | null): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPostSpot }) => {
+export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, authUser, onPostSpot }) => {
   const [mainTab, setMainTab] = useState<'comedians' | 'organizers'>('comedians');
   const [view, setView] = useState<'browse' | 'invites'>('browse');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [gigs,           setGigs]           = useState<Gig[]>([]);
   const [loadingGigs,    setLoadingGigs]    = useState(true);
-  const [appliedGigIds,  setAppliedGigIds]  = useState<Set<string>>(new Set());
+  const [gigAppStatuses, setGigAppStatuses] = useState<Record<string, string>>({});
   const [applyingToGig,  setApplyingToGig]  = useState<ApplyGig | null>(null);
 
   useEffect(() => {
     async function loadGigs() {
       try {
-        const uid = auth.currentUser?.uid;
+        const uid = authUser?.uid;
         const [gigsSnap, appsSnap] = await Promise.all([
           getDocs(query(collection(db, 'gigs'), where('status', '==', 'published'))),
           uid
@@ -62,11 +64,18 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
         ]);
 
         if (appsSnap) {
-          setAppliedGigIds(new Set(appsSnap.docs.map(d => d.data().gig_id as string)));
+          const priority: Record<string, number> = { accepted: 3, pending: 2, declined: 1 };
+          const statuses: Record<string, string> = {};
+          appsSnap.docs.forEach(d => {
+            const { gig_id, status = 'pending' } = d.data();
+            if (!statuses[gig_id] || (priority[status] ?? 0) > (priority[statuses[gig_id]] ?? 0)) {
+              statuses[gig_id] = status;
+            }
+          });
+          setGigAppStatuses(statuses);
         }
 
-        const snap = gigsSnap;
-        const loaded = snap.docs.map(d => {
+        const loaded = gigsSnap.docs.map(d => {
           const data = d.data();
           return {
             id:               d.id,
@@ -87,6 +96,7 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
             styles:           data.styles            ?? [],
             vibes:            data.vibes             ?? [],
             posted_at:        data.posted_at         ?? null,
+            posted_by_uid:    data.posted_by_uid     ?? '',
           };
         });
         loaded.sort((a, b) => (b.posted_at?.toMillis() ?? 0) - (a.posted_at?.toMillis() ?? 0));
@@ -95,10 +105,10 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
       setLoadingGigs(false);
     }
     loadGigs();
-  }, []);
+  }, [authUser]);
 
   const handleApply = (gig: Gig) => {
-    if (!auth.currentUser) {
+    if (!authUser) {
       alert('Please sign in to apply for gigs.');
       return;
     }
@@ -294,18 +304,38 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
                                <p className="text-[10px] font-black text-[#8892a4] uppercase tracking-widest">Spots</p>
                                <p className="text-lg font-black text-white italic">{gig.spots - gig.spots_filled} / {gig.spots}</p>
                              </div>
-                             {appliedGigIds.has(gig.id) ? (
-                               <button disabled className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 italic opacity-80 cursor-not-allowed">
-                                 <CheckCircle2 className="w-4 h-4" /> Applied
-                               </button>
-                             ) : (
-                               <button
-                                 onClick={() => handleApply(gig)}
-                                 className="w-full sm:w-auto bg-brand-gradient hover:opacity-90 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-orange-900/20 active:scale-95 italic"
-                               >
-                                 Apply Now <ArrowUpRight className="w-4 h-4" />
-                               </button>
-                             )}
+                             {(() => {
+                               const appStatus = gigAppStatuses[gig.id];
+                               if (gig.posted_by_uid && gig.posted_by_uid === authUser?.uid) {
+                                 return (
+                                   <span className="w-full sm:w-auto px-6 py-3 text-center text-[10px] font-black uppercase tracking-widest italic text-slate-500">
+                                     Your Gig
+                                   </span>
+                                 );
+                               }
+                               if (appStatus === 'declined') {
+                                 return (
+                                   <button disabled className="w-full sm:w-auto bg-slate-800 text-slate-500 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 italic cursor-not-allowed border border-slate-700">
+                                     Not Selected
+                                   </button>
+                                 );
+                               }
+                               if (appStatus === 'pending' || appStatus === 'accepted') {
+                                 return (
+                                   <button disabled className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 italic opacity-80 cursor-not-allowed">
+                                     <CheckCircle2 className="w-4 h-4" /> Applied
+                                   </button>
+                                 );
+                               }
+                               return (
+                                 <button
+                                   onClick={() => handleApply(gig)}
+                                   className="w-full sm:w-auto bg-brand-gradient hover:opacity-90 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl shadow-orange-900/20 active:scale-95 italic"
+                                 >
+                                   Apply Now <ArrowUpRight className="w-4 h-4" />
+                                 </button>
+                               );
+                             })()}
                            </div>
                          </div>
 
@@ -378,9 +408,9 @@ export const OpportunityBoard: React.FC<OpportunityBoardProps> = ({ role, onPost
     {applyingToGig && (
       <ApplyModal
         gig={applyingToGig}
-        authUser={auth.currentUser}
+        authUser={authUser}
         onClose={() => setApplyingToGig(null)}
-        onSuccess={gigId => { setAppliedGigIds(prev => new Set(prev).add(gigId)); setApplyingToGig(null); }}
+        onSuccess={gigId => { setGigAppStatuses(prev => ({ ...prev, [gigId]: 'pending' })); setApplyingToGig(null); }}
       />
     )}
     </>

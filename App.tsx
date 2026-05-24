@@ -191,7 +191,7 @@ function App() {
       case PageType.LEADERBOARDS:
         return <Leaderboards navigateTo={navigateTo} />;
       case PageType.OPPORTUNITIES:
-        return <OpportunityBoard role={userRole} onPostSpot={() => setIsPostModalOpen(true)} />;
+        return <OpportunityBoard role={userRole} authUser={authUser} onPostSpot={() => setIsPostModalOpen(true)} />;
       case PageType.SCENES:
         return <ScenesPage navigateTo={navigateTo} initialTab={initialTab} authUser={authUser} />;
       case PageType.HOW_TO_GET_GIGS:
@@ -209,7 +209,7 @@ function App() {
       case PageType.DASHBOARD:
         return <UserDashboard role={userRole} authUser={authUser} initialTab={initialTab} navigateTo={navigateTo} />;
       case PageType.COMEDIAN_PROFILE:
-        return <ComedianProfile docId={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} />;
+        return <ComedianProfile docId={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} userRole={userRole} />;
       case PageType.ORGANIZER_PROFILE:
         return <OrganizerProfile uid={initialTab ?? ''} navigateTo={navigateTo} authUser={authUser} userRole={userRole} />;
       default:

@@ -45,7 +45,7 @@ export const OrganizerProfile: React.FC<{
   const [isFollowing,   setIsFollowing]   = useState(false);
   const [followCount,   setFollowCount]   = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
-  const [appliedGigIds, setAppliedGigIds] = useState<Set<string>>(new Set());
+  const [gigAppStatuses, setGigAppStatuses] = useState<Record<string, string>>({});
   const [applyingToGig, setApplyingToGig] = useState<ApplyGig | null>(null);
 
   useEffect(() => {
@@ -98,7 +98,15 @@ export const OrganizerProfile: React.FC<{
               where('gig_id', 'in', gigIds.slice(0, 30))
             )
           );
-          setAppliedGigIds(new Set(appsSnap.docs.map(d => d.data().gig_id as string)));
+          const priority: Record<string, number> = { accepted: 3, pending: 2, declined: 1 };
+          const statuses: Record<string, string> = {};
+          appsSnap.docs.forEach(d => {
+            const { gig_id, status = 'pending' } = d.data();
+            if (!statuses[gig_id] || (priority[status] ?? 0) > (priority[statuses[gig_id]] ?? 0)) {
+              statuses[gig_id] = status;
+            }
+          });
+          setGigAppStatuses(statuses);
         }
 
         if (authUser) {
@@ -237,7 +245,7 @@ export const OrganizerProfile: React.FC<{
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Open Gigs</h2>
               <div className="space-y-3">
                 {activeGigs.map(gig => {
-                  const alreadyApplied = appliedGigIds.has(gig.id);
+                  const appStatus = gigAppStatuses[gig.id];
                   const canApply = userRole === 'comedian' && authUser && authUser.uid !== uid;
                   return (
                     <div
@@ -267,7 +275,11 @@ export const OrganizerProfile: React.FC<{
 
                       {canApply && (
                         <div className="mt-3 pt-3 border-t border-slate-800 flex justify-end">
-                          {alreadyApplied ? (
+                          {appStatus === 'declined' ? (
+                            <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-500 bg-slate-800 border border-slate-700">
+                              Not Selected
+                            </span>
+                          ) : appStatus === 'pending' || appStatus === 'accepted' ? (
                             <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
                               <CheckCircle2 className="w-3 h-3" /> Applied
                             </span>
@@ -343,7 +355,7 @@ export const OrganizerProfile: React.FC<{
         gig={applyingToGig}
         authUser={authUser}
         onClose={() => setApplyingToGig(null)}
-        onSuccess={gigId => { setAppliedGigIds(prev => new Set(prev).add(gigId)); setApplyingToGig(null); }}
+        onSuccess={gigId => { setGigAppStatuses(prev => ({ ...prev, [gigId]: 'pending' })); setApplyingToGig(null); }}
       />
     )}
   </>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, getDoc, query, serverTimestamp, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Briefcase, ArrowUpRight, Loader2, X } from 'lucide-react';
 
@@ -29,12 +29,33 @@ export const ApplyModal: React.FC<{
     setSubmitting(true);
     setSubmitError('');
     try {
+      // Server-side duplicate guard
+      const dupeSnap = await getDocs(query(
+        collection(db, 'applications'),
+        where('comedian_uid', '==', uid),
+        where('gig_id', '==', gig.id),
+        limit(1)
+      ));
+      if (!dupeSnap.empty) {
+        onSuccess(gig.id);
+        return;
+      }
+
+      let comedianName = '';
+      const directSnap = await getDoc(doc(db, 'comedians', uid));
+      if (directSnap.exists()) {
+        comedianName = directSnap.data().comedian_name ?? '';
+      } else {
+        const legacySnap = await getDocs(query(collection(db, 'comedians'), where('uid', '==', uid), limit(1)));
+        if (!legacySnap.empty) comedianName = legacySnap.docs[0].data().comedian_name ?? '';
+      }
       await addDoc(collection(db, 'applications'), {
-        gig_id:       gig.id,
-        comedian_uid: uid,
-        message:      pitch.trim(),
-        applied_at:   serverTimestamp(),
-        status:       'pending',
+        gig_id:        gig.id,
+        comedian_uid:  uid,
+        comedian_name: comedianName,
+        message:       pitch.trim(),
+        applied_at:    serverTimestamp(),
+        status:        'pending',
       });
       onSuccess(gig.id);
     } catch {

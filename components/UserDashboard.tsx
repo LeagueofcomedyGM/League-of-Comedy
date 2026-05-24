@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
-  doc, getDoc, updateDoc, setDoc,
+  doc, getDoc, updateDoc, setDoc, deleteDoc,
   collection, query, where, limit, getDocs, documentId,
   arrayRemove, increment, Timestamp,
 } from 'firebase/firestore';
@@ -963,7 +963,7 @@ interface GigApplicant {
   status:       string;
 }
 
-const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
+const GigsTab: React.FC<{ uid: string; role: UserRole; refreshKey?: number }> = ({ uid, role, refreshKey = 0 }) => {
   const [subTab,            setSubTab]            = useState<'applied' | 'posted'>(role === 'organizer' ? 'posted' : 'applied');
   const [loading,           setLoading]           = useState(true);
   const [applications,      setApplications]      = useState<MyApplication[]>([]);
@@ -972,10 +972,11 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
   const [expandedAppId,     setExpandedAppId]     = useState<string | null>(null);
   const [applicantsMap,     setApplicantsMap]     = useState<Record<string, GigApplicant[]>>({});
   const [loadingApplicants, setLoadingApplicants] = useState<string | null>(null);
-  const [viewingApplicant,  setViewingApplicant]  = useState<{ applicant: GigApplicant; gigTitle: string } | null>(null);
+  const [viewingApplicant,  setViewingApplicant]  = useState<{ applicant: GigApplicant; gigTitle: string; gigId: string } | null>(null);
   const [applicantProfile,  setApplicantProfile]  = useState<Record<string, any> | null>(null);
   const [loadingProfile,    setLoadingProfile]    = useState(false);
   const [updatingStatus,    setUpdatingStatus]    = useState<'accepted' | 'declined' | 'pending' | null>(null);
+  const [withdrawingId,     setWithdrawingId]     = useState<string | null>(null);
   const [editingGig,        setEditingGig]        = useState<ExistingGig | null>(null);
   const [gigVersion,        setGigVersion]        = useState(0);
 
@@ -1050,7 +1051,16 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
       setLoading(false);
     }
     load();
-  }, [uid, role, gigVersion]);
+  }, [uid, role, gigVersion, refreshKey]);
+
+  const handleWithdraw = async (appId: string) => {
+    setWithdrawingId(appId);
+    try {
+      await deleteDoc(doc(db, 'applications', appId));
+      setApplications(prev => prev.filter(a => a.appId !== appId));
+    } catch { /* ignore */ }
+    setWithdrawingId(null);
+  };
 
   const toggleApplicants = async (gigId: string) => {
     if (expandedGigId === gigId) { setExpandedGigId(null); return; }
@@ -1059,8 +1069,20 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
     try {
       const appsSnap  = await getDocs(query(collection(db, 'applications'), where('gig_id', '==', gigId)));
       const rawApps   = appsSnap.docs.map(d => ({ appId: d.id, ...(d.data() as any) }));
-      const comDocs   = await Promise.all(rawApps.map(a => getDoc(doc(db, 'comedians', a.comedian_uid))));
-      const applicants: GigApplicant[] = rawApps.map((a, i) => ({
+
+      // Deduplicate by comedian_uid — keep the highest-priority status per comedian
+      const statusPriority: Record<string, number> = { accepted: 3, pending: 2, declined: 1 };
+      const dedupedMap: Record<string, typeof rawApps[0]> = {};
+      rawApps.forEach(a => {
+        const existing = dedupedMap[a.comedian_uid];
+        if (!existing || (statusPriority[a.status ?? 'pending'] ?? 0) > (statusPriority[existing.status ?? 'pending'] ?? 0)) {
+          dedupedMap[a.comedian_uid] = a;
+        }
+      });
+      const deduped = Object.values(dedupedMap);
+
+      const comDocs   = await Promise.all(deduped.map(a => getDoc(doc(db, 'comedians', a.comedian_uid))));
+      const applicants: GigApplicant[] = deduped.map((a, i) => ({
         appId:        a.appId,
         comedianUid:  a.comedian_uid,
         comedianName: comDocs[i].data()?.comedian_name ?? 'Comedian',
@@ -1074,8 +1096,8 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
     setLoadingApplicants(null);
   };
 
-  const openApplicantProfile = async (applicant: GigApplicant, gigTitle: string) => {
-    setViewingApplicant({ applicant, gigTitle });
+  const openApplicantProfile = async (applicant: GigApplicant, gigTitle: string, gigId: string) => {
+    setViewingApplicant({ applicant, gigTitle, gigId });
     setApplicantProfile(null);
     setLoadingProfile(true);
     try {
@@ -1087,22 +1109,32 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
 
   const handleStatusUpdate = async (newStatus: 'accepted' | 'declined' | 'pending') => {
     if (!viewingApplicant) return;
+    const prevStatus = viewingApplicant.applicant.status;
+    const gigId = viewingApplicant.gigId;
     setUpdatingStatus(newStatus);
     try {
       await updateDoc(doc(db, 'applications', viewingApplicant.applicant.appId), { status: newStatus });
+
+      // Keep spots_filled in sync: +1 when accepting, -1 when un-accepting
+      if (newStatus === 'accepted' && prevStatus !== 'accepted') {
+        await updateDoc(doc(db, 'gigs', gigId), { spots_filled: increment(1) });
+        setPostedGigs(prev => prev.map(g =>
+          g.id === gigId ? { ...g, spots_filled: g.spots_filled + 1 } : g
+        ));
+      } else if (prevStatus === 'accepted' && newStatus !== 'accepted') {
+        await updateDoc(doc(db, 'gigs', gigId), { spots_filled: increment(-1) });
+        setPostedGigs(prev => prev.map(g =>
+          g.id === gigId ? { ...g, spots_filled: Math.max(0, g.spots_filled - 1) } : g
+        ));
+      }
+
       // Update applicantsMap so the list row reflects the change
-      setApplicantsMap(prev => {
-        const gigId = Object.keys(prev).find(gid =>
-          prev[gid].some(a => a.appId === viewingApplicant.applicant.appId)
-        );
-        if (!gigId) return prev;
-        return {
-          ...prev,
-          [gigId]: prev[gigId].map(a =>
-            a.appId === viewingApplicant.applicant.appId ? { ...a, status: newStatus } : a
-          ),
-        };
-      });
+      setApplicantsMap(prev => ({
+        ...prev,
+        [gigId]: (prev[gigId] ?? []).map(a =>
+          a.appId === viewingApplicant.applicant.appId ? { ...a, status: newStatus } : a
+        ),
+      }));
       // Update the modal's live applicant
       setViewingApplicant(prev =>
         prev ? { ...prev, applicant: { ...prev.applicant, status: newStatus } } : null
@@ -1204,6 +1236,15 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
                       {statusBadge(app.status)}
                       {app.status === 'accepted' && (
                         <ChevronDown className={`w-4 h-4 text-emerald-500 transition-transform ${expandedAppId === app.appId ? 'rotate-180' : ''}`} />
+                      )}
+                      {app.status === 'pending' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleWithdraw(app.appId); }}
+                          disabled={withdrawingId === app.appId}
+                          className="px-3 py-1 rounded-lg text-[9px] font-black uppercase italic tracking-widest border border-slate-700 text-slate-500 hover:border-red-600/50 hover:text-red-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {withdrawingId === app.appId ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Withdraw'}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1398,7 +1439,7 @@ const GigsTab: React.FC<{ uid: string; role: UserRole }> = ({ uid, role }) => {
                                     <div className="flex items-center gap-2 shrink-0">
                                       {statusBadge(applicant.status)}
                                       <button
-                                        onClick={() => openApplicantProfile(applicant, gig.title)}
+                                        onClick={() => openApplicantProfile(applicant, gig.title, gig.id)}
                                         className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-all"
                                       >
                                         View Profile
@@ -1980,6 +2021,7 @@ const OrganizerCapabilities = () => (
 export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, initialTab, navigateTo }) => {
   const [activeTab,      setActiveTab]      = useState(initialTab ?? 'home');
   const [isPostGigOpen,  setIsPostGigOpen]  = useState(false);
+  const [gigsKey,        setGigsKey]        = useState(0);
   const [liveStats,        setLiveStats]        = useState<Record<string, number>>({});
   const [comedianDocId,    setComedianDocId]    = useState<string | null>(null);
   const [followersOpen,    setFollowersOpen]    = useState(false);
@@ -2283,7 +2325,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
           {activeTab === 'settings'     && renderSettings()}
           {activeTab === 'edit-profile' && renderEditProfile()}
           {activeTab === 'following'    && authUser && <FollowingTab uid={authUser.uid} />}
-          {activeTab === 'gigs'         && authUser && <GigsTab uid={authUser.uid} role={role} />}
+          {activeTab === 'gigs'         && authUser && <GigsTab uid={authUser.uid} role={role} refreshKey={gigsKey} />}
           {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && activeTab !== 'following' && activeTab !== 'gigs' && (
             <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 text-center text-slate-500 flex flex-col items-center justify-center italic font-bold opacity-50 uppercase tracking-[0.2em] text-xs">
               <Zap className="w-12 h-12 mb-4 animate-pulse" />
@@ -2294,7 +2336,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
       </div>
 
       {isPostGigOpen && (
-        <PostSpotModal initialMode="GIG" onClose={() => setIsPostGigOpen(false)} />
+        <PostSpotModal
+          initialMode="GIG"
+          onClose={() => setIsPostGigOpen(false)}
+          onSuccess={() => { setIsPostGigOpen(false); setGigsKey(v => v + 1); }}
+        />
       )}
 
       {followersOpen && (() => {
