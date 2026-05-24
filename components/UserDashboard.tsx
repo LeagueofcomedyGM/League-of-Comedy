@@ -1672,7 +1672,7 @@ const GigsTab: React.FC<{ uid: string; role: UserRole; refreshKey?: number }> = 
   );
 };
 
-const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
+const FollowingTab: React.FC<{ uid: string; navigateTo: (page: PageType, tab?: string) => void }> = ({ uid, navigateTo }) => {
   const [sceneSlugs,      setSceneSlugs]      = useState<string[]>([]);
   const [sceneCounts,     setSceneCounts]     = useState<Record<string, number>>({});
   const [comedianIds,     setComedianIds]     = useState<string[]>([]);
@@ -1815,13 +1815,19 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
                     <p className="text-[10px] text-slate-500 font-medium">{slugToLocation(slug)}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-2">
                   {sceneCounts[slug] != null && (
-                    <div className="text-right hidden sm:block">
+                    <div className="text-right hidden sm:block mr-3">
                       <p className="text-xs font-black text-white">{sceneCounts[slug].toLocaleString()}</p>
                       <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">followers</p>
                     </div>
                   )}
+                  <button
+                    onClick={() => navigateTo(PageType.SCENES, slug)}
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    View
+                  </button>
                   {unfollowBtn(() => handleUnfollowScene(slug), unfollowingScene === slug)}
                 </div>
               </div>
@@ -1862,7 +1868,15 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
                     </h4>
                   </div>
                 </div>
-                {unfollowBtn(() => handleUnfollowComedian(cid), unfollowingComedian === cid)}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigateTo(PageType.COMEDIAN_PROFILE, cid)}
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    View
+                  </button>
+                  {unfollowBtn(() => handleUnfollowComedian(cid), unfollowingComedian === cid)}
+                </div>
               </div>
             ))}
           </div>
@@ -1901,7 +1915,15 @@ const FollowingTab: React.FC<{ uid: string }> = ({ uid }) => {
                     </h4>
                   </div>
                 </div>
-                {unfollowBtn(() => handleUnfollowOrganizer(oid), unfollowingOrganizer === oid)}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigateTo(PageType.ORGANIZER_PROFILE, oid)}
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-all"
+                  >
+                    View
+                  </button>
+                  {unfollowBtn(() => handleUnfollowOrganizer(oid), unfollowingOrganizer === oid)}
+                </div>
               </div>
             ))}
           </div>
@@ -2324,7 +2346,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ role, authUser, in
           {activeTab === 'home'         && renderHome()}
           {activeTab === 'settings'     && renderSettings()}
           {activeTab === 'edit-profile' && renderEditProfile()}
-          {activeTab === 'following'    && authUser && <FollowingTab uid={authUser.uid} />}
+          {activeTab === 'following'    && authUser && navigateTo && <FollowingTab uid={authUser.uid} navigateTo={navigateTo} />}
           {activeTab === 'gigs'         && authUser && <GigsTab uid={authUser.uid} role={role} refreshKey={gigsKey} />}
           {activeTab !== 'home' && activeTab !== 'settings' && activeTab !== 'edit-profile' && activeTab !== 'following' && activeTab !== 'gigs' && (
             <div className="glass-card p-20 rounded-[2.5rem] border-slate-800 text-center text-slate-500 flex flex-col items-center justify-center italic font-bold opacity-50 uppercase tracking-[0.2em] text-xs">
