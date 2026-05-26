@@ -18,7 +18,7 @@ export const AdminLogin: React.FC = () => {
 
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
-      const snap = await getDoc(doc(db, 'admins', credential.user.uid));
+      const snap = await getDoc(doc(db, 'admin', credential.user.uid));
       if (snap.exists()) {
         window.location.replace('/admin');
       } else {
@@ -52,6 +52,8 @@ export const AdminLogin: React.FC = () => {
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-[#8892a4] mb-2">Email</label>
             <input
+              id="admin-email"
+              name="email"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -66,6 +68,8 @@ export const AdminLogin: React.FC = () => {
             <label className="block text-[10px] font-black uppercase tracking-widest text-[#8892a4] mb-2">Password</label>
             <div className="relative">
               <input
+                id="admin-password"
+                name="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}

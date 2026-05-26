@@ -18,7 +18,7 @@ export const AdminGuard: React.FC<Props> = ({ children }) => {
         return;
       }
       try {
-        const snap = await getDoc(doc(db, 'admins', user.uid));
+        const snap = await getDoc(doc(db, 'admin', user.uid));
         if (snap.exists()) {
           setStatus('authorized');
         } else {
