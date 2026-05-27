@@ -1,27 +1,86 @@
-import React from 'react';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebase';
-import { Shield, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
+import { AdminLayout } from './AdminLayout';
+import { adminNavigate } from './adminNavigate';
+import { Mic2, Calendar, Building2, Trophy, Loader2, ArrowRight } from 'lucide-react';
 
-export const AdminDashboard: React.FC = () => {
-  const handleLogout = async () => {
-    await signOut(auth);
-    window.location.replace('/admin/login');
-  };
+interface Counts {
+  comedians: number;
+  shows:     number;
+  venues:    number;
+  festivals: number;
+}
+
+const STAT_CARDS = [
+  { key: 'comedians', label: 'Comedians', icon: Mic2,       path: '/admin/comedians', color: 'text-amber-400'  },
+  { key: 'shows',     label: 'Shows',     icon: Calendar,   path: '/admin/shows',     color: 'text-blue-400'   },
+  { key: 'venues',    label: 'Venues',    icon: Building2,  path: '/admin/venues',    color: 'text-emerald-400'},
+  { key: 'festivals', label: 'Festivals', icon: Trophy,     path: '/admin/festivals', color: 'text-purple-400' },
+] as const;
+
+interface Props { currentPath: string; }
+
+export const AdminDashboard: React.FC<Props> = ({ currentPath }) => {
+  const [counts,  setCounts]  = useState<Counts>({ comedians: 0, shows: 0, venues: 0, festivals: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCounts() {
+      try {
+        const [comedians, shows, venues, festivals] = await Promise.all([
+          getDocs(collection(db, 'comedians')),
+          getDocs(collection(db, 'shows')),
+          getDocs(collection(db, 'venues')),
+          getDocs(collection(db, 'festivals')),
+        ]);
+        setCounts({
+          comedians: comedians.size,
+          shows:     shows.size,
+          venues:    venues.size,
+          festivals: festivals.size,
+        });
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    loadCounts();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0e1a] flex flex-col items-center justify-center gap-6 px-4">
-      <div className="flex items-center gap-3">
-        <Shield className="w-8 h-8 text-amber-500" />
-        <h1 className="text-4xl font-black italic uppercase tracking-tight text-white">Admin Dashboard</h1>
+    <AdminLayout currentPath={currentPath}>
+      <div className="p-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Overview</h1>
+          <p className="text-xs text-[#8892a4] font-medium mt-1">Live document counts across all collections.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {STAT_CARDS.map(card => {
+            const Icon = card.icon;
+            const count = counts[card.key];
+            return (
+              <button
+                key={card.key}
+                onClick={() => adminNavigate(card.path)}
+                className="bg-[#0a0e1a] border border-white/5 hover:border-white/15 rounded-2xl p-6 text-left transition-all group"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <Icon className={`w-5 h-5 ${card.color}`} />
+                  <ArrowRight className="w-4 h-4 text-[#8892a4] group-hover:text-white transition-colors" />
+                </div>
+                <div>
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-[#8892a4] mb-1" />
+                  ) : (
+                    <p className="text-3xl font-black text-white mb-1">{count.toLocaleString()}</p>
+                  )}
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#8892a4]">{card.label}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <p className="text-[#8892a4] text-xs font-bold uppercase tracking-widest">Guard confirmed. Build from here.</p>
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-2 px-6 py-3 bg-[#131b2e] border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-[#8892a4] hover:text-white hover:border-white/20 transition-all"
-      >
-        <LogOut className="w-4 h-4" /> Sign Out
-      </button>
-    </div>
+    </AdminLayout>
   );
 };
