@@ -1,44 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getCountFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AdminLayout } from './AdminLayout';
 import { adminNavigate } from './adminNavigate';
-import { Mic2, Calendar, Building2, Trophy, Loader2, ArrowRight } from 'lucide-react';
+import { Mic2, Calendar, Building2, Trophy, Users, UserCheck, Loader2, ArrowRight } from 'lucide-react';
 
 interface Counts {
-  comedians: number;
-  shows:     number;
-  venues:    number;
-  festivals: number;
+  comedians:  number;
+  shows:      number;
+  venues:     number;
+  festivals:  number;
+  fans:       number;
+  organizers: number;
 }
 
-const STAT_CARDS = [
-  { key: 'comedians', label: 'Comedians', icon: Mic2,       path: '/admin/comedians', color: 'text-amber-400'  },
-  { key: 'shows',     label: 'Shows',     icon: Calendar,   path: '/admin/shows',     color: 'text-blue-400'   },
-  { key: 'venues',    label: 'Venues',    icon: Building2,  path: '/admin/venues',    color: 'text-emerald-400'},
-  { key: 'festivals', label: 'Festivals', icon: Trophy,     path: '/admin/festivals', color: 'text-purple-400' },
+const CONTENT_CARDS = [
+  { key: 'comedians',  label: 'Comedians',  icon: Mic2,      path: '/admin/comedians', color: 'text-amber-400'   },
+  { key: 'shows',      label: 'Shows',      icon: Calendar,  path: '/admin/shows',     color: 'text-blue-400'    },
+  { key: 'venues',     label: 'Venues',     icon: Building2, path: '/admin/venues',    color: 'text-emerald-400' },
+  { key: 'festivals',  label: 'Festivals',  icon: Trophy,    path: '/admin/festivals', color: 'text-purple-400'  },
+] as const;
+
+const USER_CARDS = [
+  { key: 'fans',       label: 'Fans',       icon: Users,     color: 'text-pink-400'   },
+  { key: 'organizers', label: 'Organizers', icon: UserCheck, color: 'text-cyan-400'   },
 ] as const;
 
 interface Props { currentPath: string; }
 
 export const AdminDashboard: React.FC<Props> = ({ currentPath }) => {
-  const [counts,  setCounts]  = useState<Counts>({ comedians: 0, shows: 0, venues: 0, festivals: 0 });
+  const [counts,  setCounts]  = useState<Counts>({ comedians: 0, shows: 0, venues: 0, festivals: 0, fans: 0, organizers: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadCounts() {
       try {
-        const [comedians, shows, venues, festivals] = await Promise.all([
-          getDocs(collection(db, 'comedians')),
-          getDocs(collection(db, 'shows')),
-          getDocs(collection(db, 'venues')),
-          getDocs(collection(db, 'festivals')),
+        const [comedians, shows, venues, festivals, fans, organizers] = await Promise.all([
+          getCountFromServer(collection(db, 'comedians')),
+          getCountFromServer(collection(db, 'shows')),
+          getCountFromServer(collection(db, 'venues')),
+          getCountFromServer(collection(db, 'festivals')),
+          getCountFromServer(collection(db, 'users')),
+          getCountFromServer(collection(db, 'organizers')),
         ]);
         setCounts({
-          comedians: comedians.size,
-          shows:     shows.size,
-          venues:    venues.size,
-          festivals: festivals.size,
+          comedians:  comedians.data().count,
+          shows:      shows.data().count,
+          venues:     venues.data().count,
+          festivals:  festivals.data().count,
+          fans:       fans.data().count,
+          organizers: organizers.data().count,
         });
       } catch { /* ignore */ }
       setLoading(false);
@@ -54,10 +65,10 @@ export const AdminDashboard: React.FC<Props> = ({ currentPath }) => {
           <p className="text-xs text-[#8892a4] font-medium mt-1">Live document counts across all collections.</p>
         </div>
 
+        {/* Content collections */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {STAT_CARDS.map(card => {
+          {CONTENT_CARDS.map(card => {
             const Icon = card.icon;
-            const count = counts[card.key];
             return (
               <button
                 key={card.key}
@@ -72,7 +83,7 @@ export const AdminDashboard: React.FC<Props> = ({ currentPath }) => {
                   {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-[#8892a4] mb-1" />
                   ) : (
-                    <p className="text-3xl font-black text-white mb-1">{count.toLocaleString()}</p>
+                    <p className="text-3xl font-black text-white mb-1">{counts[card.key].toLocaleString()}</p>
                   )}
                   <p className="text-[11px] font-black uppercase tracking-widest text-[#8892a4]">{card.label}</p>
                 </div>
@@ -80,6 +91,35 @@ export const AdminDashboard: React.FC<Props> = ({ currentPath }) => {
             );
           })}
         </div>
+
+        {/* Users */}
+        <div className="mt-8">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#8892a4] mb-4">Users</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {USER_CARDS.map(card => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.key}
+                  className="bg-[#0a0e1a] border border-white/5 rounded-2xl p-6"
+                >
+                  <div className="mb-4">
+                    <Icon className={`w-5 h-5 ${card.color}`} />
+                  </div>
+                  <div>
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-[#8892a4] mb-1" />
+                    ) : (
+                      <p className="text-3xl font-black text-white mb-1">{counts[card.key].toLocaleString()}</p>
+                    )}
+                    <p className="text-[11px] font-black uppercase tracking-widest text-[#8892a4]">{card.label}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
     </AdminLayout>
   );
