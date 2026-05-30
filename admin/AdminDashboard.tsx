@@ -34,24 +34,22 @@ export const AdminDashboard: React.FC<Props> = ({ currentPath }) => {
 
   useEffect(() => {
     async function loadCounts() {
-      try {
-        const [comedians, shows, venues, festivals, fans, organizers] = await Promise.all([
-          getCountFromServer(collection(db, 'comedians')),
-          getCountFromServer(collection(db, 'shows')),
-          getCountFromServer(collection(db, 'venues')),
-          getCountFromServer(collection(db, 'festivals')),
-          getCountFromServer(collection(db, 'users')),
-          getCountFromServer(collection(db, 'organizers')),
-        ]);
-        setCounts({
-          comedians:  comedians.data().count,
-          shows:      shows.data().count,
-          venues:     venues.data().count,
-          festivals:  festivals.data().count,
-          fans:       fans.data().count,
-          organizers: organizers.data().count,
-        });
-      } catch { /* ignore */ }
+      const keys = ['comedians', 'shows', 'venues', 'festivals', 'users', 'organizers'] as const;
+      const results = await Promise.allSettled(
+        keys.map(k => getCountFromServer(collection(db, k)))
+      );
+      const resolved = results.map((r, i) => {
+        if (r.status === 'rejected') console.error(`Count failed for ${keys[i]}:`, r.reason);
+        return r.status === 'fulfilled' ? r.value.data().count : 0;
+      });
+      setCounts({
+        comedians:  resolved[0],
+        shows:      resolved[1],
+        venues:     resolved[2],
+        festivals:  resolved[3],
+        fans:       resolved[4],
+        organizers: resolved[5],
+      });
       setLoading(false);
     }
     loadCounts();
