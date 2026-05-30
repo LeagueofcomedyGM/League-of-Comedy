@@ -222,3 +222,34 @@ exports.getUserProfile = functions.https.onCall(async (data, context) => {
 
   return { found: false };
 });
+
+// Fires whenever any scene document is written (follow/unfollow).
+// Writes an aggregated JSON of all scene follower counts to Firebase Storage
+// so the client can fetch it from Google's CDN instead of reading Firestore directly.
+exports.syncScenesSnapshot = functions.firestore
+  .document('scenes/{sceneSlug}')
+  .onWrite(async () => {
+    try {
+      const snap = await db.collection('scenes').get();
+      const counts = {};
+      snap.docs.forEach(d => {
+        const fc = d.data().follower_count;
+        if (fc != null) counts[d.id] = fc;
+      });
+
+      const bucket = admin.storage().bucket();
+      const file = bucket.file('scenes-meta.json');
+      await file.save(JSON.stringify(counts), {
+        contentType: 'application/json',
+        metadata: { cacheControl: 'public, max-age=60' },
+      });
+      try {
+        await file.makePublic();
+      } catch {
+        // Silently skip if the bucket uses uniform access control;
+        // in that case add a Storage Security Rule: allow read for /scenes-meta.json.
+      }
+    } catch (err) {
+      console.error('syncScenesSnapshot:', err);
+    }
+  });

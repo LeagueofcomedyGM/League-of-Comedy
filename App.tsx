@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { auth } from './firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { handleUserSignup, getUserProfile } from './lib/profile';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -55,11 +56,15 @@ const MobileBottomNav: React.FC<{
   );
 };
 
+const SCENES_SNAPSHOT_URL =
+  'https://storage.googleapis.com/league-of-comedy-user-auth.firebasestorage.app/scenes-meta.json';
+
 function App() {
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [currentPage, setCurrentPage] = useState<PageType>(PageType.HOME);
   const [initialTab, setInitialTab] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('fan');
+  const [sceneFollowerCounts, setSceneFollowerCounts] = useState<Record<string, number>>({});
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -137,6 +142,32 @@ function App() {
   }, [verificationState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    async function loadSceneCounts() {
+      try {
+        const res = await fetch(SCENES_SNAPSHOT_URL);
+        if (res.ok) {
+          setSceneFollowerCounts(await res.json());
+          return;
+        }
+      } catch { /* fall through to Firestore */ }
+      try {
+        const snap = await getDocs(collection(db, 'scenes'));
+        const counts: Record<string, number> = {};
+        snap.docs.forEach(d => {
+          const fc = d.data().follower_count;
+          if (fc != null) counts[d.id] = fc as number;
+        });
+        setSceneFollowerCounts(counts);
+      } catch { /* ignore */ }
+    }
+    loadSceneCounts();
+  }, []);
+
+  const updateSceneFollowerCount = (slug: string, newCount: number) => {
+    setSceneFollowerCounts(prev => ({ ...prev, [slug]: newCount }));
+  };
+
+  useEffect(() => {
     const handleHashChange = () => {
       const fullHash = window.location.hash.replace('#', '');
       const [page, tab] = fullHash.split(':');
@@ -193,7 +224,7 @@ function App() {
       case PageType.OPPORTUNITIES:
         return <OpportunityBoard role={userRole} authUser={authUser} onPostSpot={() => setIsPostModalOpen(true)} />;
       case PageType.SCENES:
-        return <ScenesPage navigateTo={navigateTo} initialTab={initialTab} authUser={authUser} userRole={userRole} />;
+        return <ScenesPage navigateTo={navigateTo} initialTab={initialTab} authUser={authUser} userRole={userRole} sceneFollowerCounts={sceneFollowerCounts} onSceneFollowChange={updateSceneFollowerCount} />;
       case PageType.HOW_TO_GET_GIGS:
         return <HowToGetGigs />;
       case PageType.ORGANIZER_GETTING_STARTED:

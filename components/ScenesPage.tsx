@@ -94,9 +94,11 @@ interface ScenesPageProps {
   initialTab?: string | null;
   authUser?: FirebaseUser | null;
   userRole?: string;
+  sceneFollowerCounts?: Record<string, number>;
+  onSceneFollowChange?: (slug: string, newCount: number) => void;
 }
 
-export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, authUser, userRole }) => {
+export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, authUser, userRole, sceneFollowerCounts = {}, onSceneFollowChange }) => {
   const [activeTab, setActiveTab] = useState('SHOWS');
   const [isFollowed,          setIsFollowed]          = useState(false);
   const [followerCount,       setFollowerCount]       = useState(0);
@@ -261,17 +263,8 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   }, [sceneSlug, authUser]);
 
   useEffect(() => {
-    setFollowerCount(0);
-    async function loadFollowerCount() {
-      try {
-        const sceneSnap = await getDoc(doc(db, 'scenes', sceneSlug));
-        if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
-          setFollowerCount(sceneSnap.data().follower_count as number);
-        }
-      } catch { /* ignore */ }
-    }
-    loadFollowerCount();
-  }, [sceneSlug]);
+    setFollowerCount(sceneFollowerCounts[sceneSlug] ?? 0);
+  }, [sceneSlug, sceneFollowerCounts]);
 
   useEffect(() => {
     setIsFollowed(false);
@@ -362,11 +355,14 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
       return;
     }
     const nowFollowing = !isFollowed;
+    const prevCount = followerCount;
+    const nextCount = prevCount + (nowFollowing ? 1 : -1);
 
     // Optimistic update — UI responds immediately
     setIsFollowed(nowFollowing);
-    setFollowerCount(c => c + (nowFollowing ? 1 : -1));
+    setFollowerCount(nextCount);
     setFollowing(true);
+    onSceneFollowChange?.(sceneSlug, nextCount);
 
     try {
       await Promise.all([
@@ -381,7 +377,8 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
     } catch {
       // Roll back on failure
       setIsFollowed(!nowFollowing);
-      setFollowerCount(c => c + (nowFollowing ? -1 : 1));
+      setFollowerCount(prevCount);
+      onSceneFollowChange?.(sceneSlug, prevCount);
     }
     setFollowing(false);
   };
