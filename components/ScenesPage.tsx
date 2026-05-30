@@ -261,8 +261,20 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
   }, [sceneSlug, authUser]);
 
   useEffect(() => {
-    setIsFollowed(false);
     setFollowerCount(0);
+    async function loadFollowerCount() {
+      try {
+        const sceneSnap = await getDoc(doc(db, 'scenes', sceneSlug));
+        if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
+          setFollowerCount(sceneSnap.data().follower_count as number);
+        }
+      } catch { /* ignore */ }
+    }
+    loadFollowerCount();
+  }, [sceneSlug]);
+
+  useEffect(() => {
+    setIsFollowed(false);
     setFollowingComedians(new Set());
     setFollowingOrganizers(new Set());
 
@@ -270,18 +282,12 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
 
     async function loadFollowState() {
       try {
-        const [userSnap, sceneSnap] = await Promise.all([
-          getDoc(doc(db, 'users', authUser!.uid)),
-          getDoc(doc(db, 'scenes', sceneSlug)),
-        ]);
+        const userSnap = await getDoc(doc(db, 'users', authUser!.uid));
         const data = userSnap.data() ?? {};
         const scenes: string[] = data.following_scenes ?? [];
         setIsFollowed(scenes.includes(sceneSlug));
         setFollowingComedians(new Set(data.following_comedians ?? []));
         setFollowingOrganizers(new Set(data.following_organizers ?? []));
-        if (sceneSnap.exists() && sceneSnap.data().follower_count != null) {
-          setFollowerCount(sceneSnap.data().follower_count as number);
-        }
       } catch { /* ignore */ }
     }
 
