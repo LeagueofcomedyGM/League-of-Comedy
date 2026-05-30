@@ -373,6 +373,9 @@ export const ScenesPage: React.FC<ScenesPageProps> = ({ navigateTo, initialTab, 
           slug: sceneSlug,
           follower_count: increment(nowFollowing ? 1 : -1),
         }, { merge: true }),
+        setDoc(doc(db, 'config', 'scenes_snapshot'), {
+          [sceneSlug]: increment(nowFollowing ? 1 : -1),
+        }, { merge: true }),
       ]);
     } catch {
       // Roll back on failure

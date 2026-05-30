@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { handleUserSignup, getUserProfile } from './lib/profile';
 import { Navbar } from './components/Navbar';
@@ -55,9 +55,6 @@ const MobileBottomNav: React.FC<{
     </div>
   );
 };
-
-const SCENES_SNAPSHOT_URL =
-  'https://storage.googleapis.com/league-of-comedy-user-auth.firebasestorage.app/scenes-meta.json';
 
 function App() {
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
@@ -143,13 +140,15 @@ function App() {
 
   useEffect(() => {
     async function loadSceneCounts() {
+      // Try the aggregated snapshot first — 1 read covers all scenes
       try {
-        const res = await fetch(SCENES_SNAPSHOT_URL);
-        if (res.ok) {
-          setSceneFollowerCounts(await res.json());
+        const snap = await getDoc(doc(db, 'config', 'scenes_snapshot'));
+        if (snap.exists()) {
+          setSceneFollowerCounts(snap.data() as Record<string, number>);
           return;
         }
-      } catch { /* fall through to Firestore */ }
+      } catch { /* fall through */ }
+      // Snapshot not seeded yet — read scenes collection and write the snapshot for future visitors
       try {
         const snap = await getDocs(collection(db, 'scenes'));
         const counts: Record<string, number> = {};
@@ -158,6 +157,9 @@ function App() {
           if (fc != null) counts[d.id] = fc as number;
         });
         setSceneFollowerCounts(counts);
+        if (Object.keys(counts).length > 0) {
+          setDoc(doc(db, 'config', 'scenes_snapshot'), counts).catch(() => {});
+        }
       } catch { /* ignore */ }
     }
     loadSceneCounts();
