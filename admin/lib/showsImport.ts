@@ -15,6 +15,19 @@ export function parseShowDate(raw: string): Date | null {
   if (!raw?.trim()) return null;
   const s = raw.trim();
 
+  // ISO-style: YYYY-MM-DD HH:mm (Fever)
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+  if (iso) {
+    const d = new Date(
+      parseInt(iso[1], 10),
+      parseInt(iso[2], 10) - 1,
+      parseInt(iso[3], 10),
+      parseInt(iso[4], 10),
+      parseInt(iso[5], 10),
+    );
+    if (!isNaN(d.getTime())) return d;
+  }
+
   // AM/PM: M/D/YYYY h:mm AM/PM
   const ampm = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (ampm) {
@@ -60,6 +73,10 @@ export function generateShowSlug(title: string, date: Date | null, eventId: stri
   const idPart = (eventId || '').slice(-6) || 'xxxxxx';
 
   return `${titlePart}-${datePart}-${idPart}`.replace(/-+/g, '-');
+}
+
+export function makeShowDocId(platform: string, eventId: string): string {
+  return `${(platform ?? '').replace(/\//g, '-')}::${(eventId ?? '').replace(/\//g, '-')}`;
 }
 
 export function buildShowDoc(
