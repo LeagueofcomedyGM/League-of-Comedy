@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import Papa from 'papaparse';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch, setDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { AdminLayout } from '../AdminLayout';
 import { ShowsManage } from '../components/ShowsManage';
@@ -129,6 +129,20 @@ export const ShowsPage: React.FC<Props> = ({ currentPath }) => {
       } catch {
         errors += ch.length;
       }
+    }
+
+    // Update filter metadata so dropdowns stay current
+    if (written > 0) {
+      const platforms = [...new Set(toImport.map(r => (r._raw.events_platform ?? '').trim()).filter(Boolean))];
+      const cities    = [...new Set(toImport.map(r => (r._raw.venue_city      ?? '').trim()).filter(Boolean))];
+      const countries = [...new Set(toImport.map(r => (r._raw.country_code    ?? '').trim().toUpperCase()).filter(Boolean))];
+      try {
+        await setDoc(doc(db, 'metadata', 'shows_filters'), {
+          ...(platforms.length && { platforms: arrayUnion(...platforms) }),
+          ...(cities.length    && { cities:    arrayUnion(...cities)    }),
+          ...(countries.length && { countries: arrayUnion(...countries) }),
+        }, { merge: true });
+      } catch { /* non-critical */ }
     }
 
     setReport({ written, errors });

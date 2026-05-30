@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  collection, getDocs, deleteDoc, doc,
+  collection, getDocs, getDoc, deleteDoc, doc,
   query, where, orderBy, Timestamp, writeBatch,
   limit, startAfter,
 } from 'firebase/firestore';
@@ -105,6 +105,11 @@ export const ShowsManage: React.FC = () => {
   const [cityInput,     setCityInput]     = useState('');
   const [countryInput,  setCountryInput]  = useState('');
 
+  // Autocomplete options loaded from metadata/shows_filters
+  const [metaPlatforms, setMetaPlatforms] = useState<string[]>([]);
+  const [metaCities,    setMetaCities]    = useState<string[]>([]);
+  const [metaCountries, setMetaCountries] = useState<string[]>([]);
+
   // UI
   const [search,      setSearch]      = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -140,6 +145,17 @@ export const ShowsManage: React.FC = () => {
 
     return () => { cancelled = true; };
   }, [activeFilters, pageIndex, reloadKey]);
+
+  // ── Load filter metadata once on mount ──────────────────────────────────────
+  useEffect(() => {
+    getDoc(doc(db, 'metadata', 'shows_filters')).then(snap => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      if (Array.isArray(d.platforms)) setMetaPlatforms(d.platforms.sort());
+      if (Array.isArray(d.cities))    setMetaCities(d.cities.sort());
+      if (Array.isArray(d.countries)) setMetaCountries(d.countries.sort());
+    }).catch(() => { /* non-critical */ });
+  }, []);
 
   // ── Filter helpers ───────────────────────────────────────────────────────────
   const applyFilters = (newFilters: ActiveFilters) => {
@@ -309,20 +325,31 @@ export const ShowsManage: React.FC = () => {
 
         {/* Platform / City / Country — Firestore where clauses, committed on Enter or Apply */}
         <input
+          list="meta-platforms"
           value={platformInput}
           onChange={e => setPlatformInput(e.target.value)}
           onKeyDown={onEnter}
-          placeholder="Platform (Enter to apply)"
-          className={`${inputCls} w-44`}
+          placeholder="Platform"
+          className={`${inputCls} w-36`}
         />
+        <datalist id="meta-platforms">
+          {metaPlatforms.map(p => <option key={p} value={p} />)}
+        </datalist>
+
         <input
+          list="meta-cities"
           value={cityInput}
           onChange={e => setCityInput(e.target.value)}
           onKeyDown={onEnter}
           placeholder="City"
           className={`${inputCls} w-32`}
         />
+        <datalist id="meta-cities">
+          {metaCities.map(c => <option key={c} value={c} />)}
+        </datalist>
+
         <input
+          list="meta-countries"
           value={countryInput}
           onChange={e => setCountryInput(e.target.value.toUpperCase())}
           onKeyDown={onEnter}
@@ -330,6 +357,9 @@ export const ShowsManage: React.FC = () => {
           maxLength={2}
           className={`${inputCls} w-16`}
         />
+        <datalist id="meta-countries">
+          {metaCountries.map(c => <option key={c} value={c} />)}
+        </datalist>
         <button
           onClick={commitTextFilters}
           className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest text-[#8892a4] border border-white/10 hover:border-white/20 hover:text-white transition-all"

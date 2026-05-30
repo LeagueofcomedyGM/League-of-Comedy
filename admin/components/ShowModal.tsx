@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, setDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, Timestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { makeShowDocId, generateShowSlug } from '../lib/showsImport';
 import { X, Loader2 } from 'lucide-react';
@@ -194,6 +194,19 @@ export const ShowModal: React.FC<Props> = ({ show, onClose, onSaved }) => {
       }
 
       await setDoc(doc(db, 'shows', newDocId), data);
+
+      // Keep filter metadata current
+      const platform = form.events_platform.trim();
+      const city     = form.venue_city.trim();
+      const country  = form.country_code.trim().toUpperCase();
+      try {
+        await setDoc(doc(db, 'metadata', 'shows_filters'), {
+          ...(platform && { platforms: arrayUnion(platform) }),
+          ...(city     && { cities:    arrayUnion(city)     }),
+          ...(country  && { countries: arrayUnion(country)  }),
+        }, { merge: true });
+      } catch { /* non-critical */ }
+
       onSaved();
       onClose();
     } catch {
